@@ -14,25 +14,29 @@ jobs:
           check_together: 'yes'
           scandir: 'tools'
   swift-format:
-    runs-on: macos-latest
+    runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
     steps:
       - uses: actions/checkout@v7
+      - run: xcodebuild -version
       - run: swift format lint --strict --recursive OSXCore OSX GureumTests Preferences OSXTestApp
   build-and-test:
-    runs-on: macos-latest
+    runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: recursive
-      - uses: sersoft-gmbh/xcodebuild-action@v4
-        with:
-          project: Gureum.xcodeproj
-          scheme: OSX
-          sdk: macosx
-          destination: platform=macOS
-          action: build test
-          output-formatter: xcpretty --color
+      - run: xcodebuild -version
+      - name: Build and test without release-signing credentials
+        run: >-
+          xcodebuild -project Gureum.xcodeproj -scheme OSX -sdk macosx
+          -destination 'platform=macOS' test
+          -onlyUsePackageVersionsFromResolvedFile
+          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
       #- uses: sersoft-gmbh/xcodebuild-action@v4
       #  with:
       #    workspace: Gureum.xcworkspace
