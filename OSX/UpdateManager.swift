@@ -32,6 +32,10 @@ class UpdateManager {
   }
 
   func requestVersionInfo(mode: UpdateMode, _ done: @escaping ((VersionInfo?) -> Void)) {
+    guard !InputMethodIdentity.current.isChordLab else {
+      done(nil)
+      return
+    }
     let url: URL
     switch mode {
     case .stable:

@@ -45,7 +45,9 @@ class GureumAppDelegate: NSObject, NSApplicationDelegate, GureumApplicationDeleg
   let notificationCenterDelegate = NotificationCenterDelegate()
 
   func applicationDidFinishLaunching(_: Notification) {
-    FirebaseApp.configure()
+    if !InputMethodIdentity.current.isChordLab {
+      FirebaseApp.configure()
+    }
     UserDefaults.standard.register(defaults: ["NSApplicationCrashOnExceptions": true])
 
     NSUserNotificationCenter.default.delegate = notificationCenterDelegate
@@ -63,7 +65,9 @@ class GureumAppDelegate: NSObject, NSApplicationDelegate, GureumApplicationDeleg
       // Fabric.with([Crashlytics.self, Answers.self])
     #endif
 
-    UpdateManager.shared.notifyUpdateIfNeeded()
+    if !InputMethodIdentity.current.isChordLab {
+      UpdateManager.shared.notifyUpdateIfNeeded()
+    }
 
     // 입력 모니터링 권한 요청
     if #available(macOS 10.15, *) {

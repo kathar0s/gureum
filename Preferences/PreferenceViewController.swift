@@ -133,6 +133,12 @@ final class PreferenceViewController: NSViewController {
       updateNotificationExperimentalButton.state = isOn(
         configuration.updateNotificationExperimental)
     }
+    if InputMethodIdentity.current.isChordLab {
+      updateNotificationButton.state = .off
+      updateNotificationButton.isEnabled = false
+      updateNotificationExperimentalButton.state = .off
+      updateNotificationExperimentalButton.isEnabled = false
+    }
 
     #if DEBUG
       debugButton.isHidden = false
