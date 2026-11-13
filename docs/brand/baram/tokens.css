@@ -1,0 +1,32 @@
+:root {
+  --accent: #14675f;
+  --on-accent: #ffffff;
+  --accent-soft: #e5ece7;
+  --bg: #f6f4ee;
+  --surface: #ffffff;
+  --surface-2: #e5ece7;
+  --line: #d6ded7;
+  --ink: #172c2c;
+  --ink-2: #5d6e68;
+  --ink-3: #66756e;
+  --night: #162623;
+  --mint: #a9e2cd;
+  --warm: #d9a15f;
+  --ok: #14675f;
+  --on-ok: #ffffff;
+  --ok-bg: #e5ece7;
+  --warn: #6b4c15;
+  --on-warn: #ffffff;
+  --warn-bg: #fbf0d8;
+  --error: #a92b35;
+  --on-error: #ffffff;
+  --error-bg: #f8e9eb;
+  --r-s: 8px;
+  --r-m: 12px;
+  --r-l: 20px;
+  --font-body: "Apple SD Gothic Neo", "Noto Sans CJK KR", sans-serif;
+  --font-brand: "Apple SD Gothic Neo", "Noto Sans CJK KR", sans-serif;
+  --font-poem: "AppleMyungjo", "Noto Serif CJK KR", serif;
+}
+
+/* Brand-document tokens only. Runtime AppKit semantic colors remain OS-owned. */

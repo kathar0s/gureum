@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>바람획 ㅂ 크기·인식 비교</title><link rel="stylesheet" href="tokens.css"><style>
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:var(--font-body);color:var(--ink)}main{width:1600px;height:1100px;padding:64px 80px}h1{font-size:44px;margin:0 0 18px}p{font-size:22px;color:var(--ink-2);margin:0;line-height:1.5}table{margin-top:35px;width:100%;border-collapse:collapse;text-align:center}th{font-size:22px;padding:18px;font-weight:600}td{height:190px;border-top:1px solid var(--line)}th:first-child{width:130px}svg{display:inline-block;vertical-align:middle;overflow:visible;color:var(--ink)}.night{background:var(--night);color:var(--bg)}.night svg{color:var(--bg)}.label{font-size:17px;color:var(--ink-2)}.note{margin-top:28px;font-size:19px}.legend{margin-top:20px;display:flex;gap:45px;align-items:center}
+</style></head><body><svg width="0" height="0" aria-hidden="true" style="position:absolute"><defs>{{MARK_SYMBOLS}}
+<symbol id="generic-wind" viewBox="0 0 128 128"><path d="M16 40H84C105 40 105 15 87 15M16 64H110M16 88H74C94 88 94 112 76 112" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round"/></symbol>
+<symbol id="generic-cloud" viewBox="0 0 128 128"><path d="M29 91C4 91 8 53 31 52C34 18 83 16 92 49C121 45 132 91 104 91Z" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="plain-b" viewBox="0 0 128 128"><path d="M36 24V101H91V24M36 64H91M36 101H91" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</defs></svg><main><h1>바람획 ㅂ · 크기와 실루엣 비교</h1><p>워드마크를 가리고 16 / 32 / 128 px 단색을 나란히 비교한다.<br>관찰 기준: 비읍 골격 → 평행 입구 → 아래 속공간 → 오른쪽 꼬리. 사용자 인지 실험 결과를 뜻하지 않는다.</p>
+<table><thead><tr><th>실제 크기</th><th>추천 마스터</th><th>작은 크기 보정</th><th>일반 바람</th><th>일반 구름</th><th>일반 ㅂ</th></tr></thead><tbody>{{RECOGNITION_ROWS}}</tbody></table>
+<p class="note">16–32 px: 작은 크기 보정 원본을 사용한다. 입구를 줄이고 획을 12로 키워 내부 공간을 확보했다.<br>128 px 이상: 마스터 획 10, 곡선 꼬리, 큰 앱 아이콘에서 두 가닥의 색을 분리한다.</p>
+<div class="legend"><span class="label">어두운 메뉴바 확대 예시</span><div class="night" style="padding:20px 50px;border-radius:12px"><svg width="32" height="32"><use href="#wind-b-small"/></svg></div><span class="label">원본 기하 신규 제작 · 최종 실루엣 사용자 검토 전</span></div>
+</main></body></html>
