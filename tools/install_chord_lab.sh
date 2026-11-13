@@ -10,6 +10,14 @@ APP_PATH="${BUILD_DIR}/Build/Products/Debug/${LAB_NAME}.app"
 INSTALL_DIR="${HOME}/Library/Input Methods"
 INSTALLED_APP="${INSTALL_DIR}/${LAB_NAME}.app"
 MODE="${1:---build-only}"
+LAB_ARCHS="${GUREUM_LAB_ARCHS:-$(uname -m)}"
+LAB_TAG="$(git -C "$REPO_DIR" describe --tags --always)"
+LAB_VERSION="${LAB_TAG#GureumKIM-}-Debug"
+
+case "$LAB_ARCHS" in
+    arm64|x86_64|'arm64 x86_64') ;;
+    *) echo "Unsupported Lab architectures: $LAB_ARCHS" >&2; exit 2 ;;
+esac
 
 usage() {
     echo "Usage: $0 [--build-only|--install|--uninstall|--help]"
@@ -62,6 +70,8 @@ cd "$REPO_DIR"
 xcodebuild -project Gureum.xcodeproj -scheme OSX -configuration Debug \
     -sdk macosx -destination 'platform=macOS' -derivedDataPath "$BUILD_DIR" \
     -onlyUsePackageVersionsFromResolvedFile GUREUM_VARIANT=LAB \
+    ARCHS="$LAB_ARCHS" ONLY_ACTIVE_ARCH=NO \
+    VERSION="$LAB_VERSION" \
     CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
 
 verify_lab "$APP_PATH"
@@ -87,6 +97,10 @@ if [[ "$MODE" == --install ]]; then
     /usr/bin/ditto "$APP_PATH" "$INSTALLED_APP"
     verify_lab "$INSTALLED_APP"
     /usr/bin/codesign --verify --deep --strict "$INSTALLED_APP"
+    # shellcheck source=tools/chord_lab_distribution/lab_defaults.sh
+    . "${SCRIPT_DIR}/chord_lab_distribution/lab_defaults.sh"
+    # shellcheck disable=SC2119
+    initialize_chord_lab_defaults
     /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
         -f "$INSTALLED_APP"
     echo "Installed: $INSTALLED_APP"
