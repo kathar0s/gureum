@@ -921,6 +921,120 @@ class GureumTests: XCTestCase {
   //    }
 }
 
+class InputMethodIdentityTests: XCTestCase {
+  private let sourceSuffixes: [(GureumInputSource, String)] = [
+    (.system, "system"), (.qwerty, "qwerty"), (.dvorak, "dvorak"), (.colemak, "colemak"),
+    (.han2, "han2"), (.han2Classic, "han2classic"), (.han3Final, "han3final"),
+    (.han390, "han390"), (.han3NoShift, "han3noshift"), (.han3Classic, "han3classic"),
+    (.han3Layout2, "han3layout2"), (.hanAhnmatae, "hanahnmatae"), (.hanRoman, "hanroman"),
+    (.han3FinalNoShift, "han3finalnoshift"), (.han32011, "han3-2011"), (.han32012, "han3-2012"),
+  ]
+
+  private func identity(infoDictionary: [String: Any] = [:]) throws -> InputMethodIdentity {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString).appendingPathExtension("bundle")
+    let contents = directory.appendingPathComponent("Contents", isDirectory: true)
+    try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+    addTeardownBlock { try FileManager.default.removeItem(at: directory) }
+    let data = try PropertyListSerialization.data(
+      fromPropertyList: infoDictionary, format: .xml, options: 0)
+    try data.write(to: contents.appendingPathComponent("Info.plist"))
+    return InputMethodIdentity(bundle: try XCTUnwrap(Bundle(url: directory)))
+  }
+
+  private func labIdentity() throws -> InputMethodIdentity {
+    try identity(infoDictionary: [
+      "GureumInputSourcePrefix": "io.github.kathar0s.inputmethod.GureumChordLab",
+      "GureumDefaultsSuiteName": "io.github.kathar0s.GureumChordLab",
+      "GureumChordLab": true,
+    ])
+  }
+
+  func testMissingBundleMetadataPreservesUpstreamIdentity() throws {
+    let identity = try identity()
+
+    XCTAssertEqual(identity.inputSourcePrefix, "org.youknowone.inputmethod.Gureum")
+    XCTAssertEqual(identity.defaultsSuiteName, "org.youknowone.Gureum")
+    XCTAssertFalse(identity.isChordLab)
+  }
+
+  func testLabBundleMetadataSelectsLabIdentity() throws {
+    let identity = try labIdentity()
+
+    XCTAssertEqual(identity.inputSourcePrefix, "io.github.kathar0s.inputmethod.GureumChordLab")
+    XCTAssertEqual(identity.defaultsSuiteName, "io.github.kathar0s.GureumChordLab")
+    XCTAssertTrue(identity.isChordLab)
+  }
+
+  func testUpstreamInputSourceIdentifiersRetainTheirExistingValues() throws {
+    let identity = try identity()
+    XCTAssertEqual(sourceSuffixes.count, GureumInputSource.allCases.count)
+
+    for (source, suffix) in sourceSuffixes {
+      XCTAssertEqual(
+        source.identifier(for: identity), "org.youknowone.inputmethod.Gureum.\(suffix)")
+    }
+  }
+
+  func testAllInputSourcesRoundTripUnderUpstreamAndLabIdentities() throws {
+    for identity in try [identity(), labIdentity()] {
+      for source in GureumInputSource.allCases {
+        let identifier = source.identifier(for: identity)
+
+        XCTAssertEqual(GureumInputSource(rawValue: identifier, identity: identity), source)
+      }
+    }
+  }
+
+  func testInputSourceRawValuesUseTheCurrentBundleIdentity() {
+    for (source, suffix) in sourceSuffixes {
+      XCTAssertEqual(source.rawValue, InputMethodIdentity.current.identifier(for: suffix))
+      XCTAssertEqual(GureumInputSource(rawValue: source.rawValue), source)
+    }
+  }
+
+  func testInputSourcesRejectIdentifiersFromTheOtherProduct() throws {
+    let upstream = try identity()
+    let lab = try labIdentity()
+
+    for source in GureumInputSource.allCases {
+      XCTAssertNil(
+        GureumInputSource(rawValue: source.identifier(for: lab), identity: upstream))
+      XCTAssertNil(
+        GureumInputSource(rawValue: source.identifier(for: upstream), identity: lab))
+    }
+  }
+
+  func testInputSourcesRejectUnknownSuffixes() throws {
+    for identity in try [identity(), labIdentity()] {
+      XCTAssertNil(
+        GureumInputSource(rawValue: identity.identifier(for: "unknown"), identity: identity))
+    }
+  }
+
+  func testLabAndUpstreamSettingsUseIndependentDefaultsSuites() throws {
+    let upstreamIdentity = try identity()
+    let labIdentity = try labIdentity()
+    XCTAssertNotEqual(upstreamIdentity.defaultsSuiteName, labIdentity.defaultsSuiteName)
+
+    let testSuffix = ".test.\(UUID().uuidString)"
+    let upstreamSuite = upstreamIdentity.defaultsSuiteName + testSuffix
+    let labSuite = labIdentity.defaultsSuiteName + testSuffix
+    let upstream = try XCTUnwrap(Configuration(suiteName: upstreamSuite))
+    let lab = try XCTUnwrap(Configuration(suiteName: labSuite))
+    defer {
+      upstream.removePersistentDomain(forName: upstreamSuite)
+      lab.removePersistentDomain(forName: labSuite)
+    }
+
+    upstream.hangulAutoReorder = false
+    lab.hangulAutoReorder = true
+
+    XCTAssertFalse(upstream.hangulAutoReorder)
+    XCTAssertTrue(lab.hangulAutoReorder)
+  }
+}
+
 class Han3FinalNoShiftTests: XCTestCase {
   let app = ModerateApp()
 
