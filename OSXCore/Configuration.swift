@@ -64,6 +64,8 @@ enum ConfigurationName {
   public static let hangulWonCurrencySymbolForBackQuote = "HangulWonCurrencySymbolForBackQuote"
   /// 완성되지 않은 낱자 자동 교정 (모아치기).
   public static let hangulAutoReorder = "HangulAutoReorder"
+  /// Lab 전용 물리적 키 묶기. 사용자 동의 전에는 꺼져 있다.
+  public static let physicalChordingEnabled = "PhysicalChordingEnabled"
   /// 두벌식 초성 조합 중에도 종성 결합 허용 (MS윈도 호환).
   public static let hangulNonChoseongCombination = "HangulNonChoseongCombination"
   /// 모든 글자를 조합 중인 글자로 취급 (JDK 호환).
@@ -127,6 +129,7 @@ public class Configuration: UserDefaults {
       ConfigurationName.romanModeByEscapeKey: false,
       ConfigurationName.hangulWonCurrencySymbolForBackQuote: true,
       ConfigurationName.hangulAutoReorder: false,
+      ConfigurationName.physicalChordingEnabled: false,
       ConfigurationName.hangulNonChoseongCombination: false,
       ConfigurationName.hangulDeferredSymbolCommit: false,
       ConfigurationName.hangulForceStrictCombinationRule: false,
@@ -255,6 +258,11 @@ public class Configuration: UserDefaults {
     set {
       set(newValue, forKey: ConfigurationName.hangulAutoReorder)
     }
+  }
+
+  public var physicalChordingEnabled: Bool {
+    get { bool(forKey: ConfigurationName.physicalChordingEnabled) }
+    set { set(newValue, forKey: ConfigurationName.physicalChordingEnabled) }
   }
 
   /// 두벌식 초성 조합 중에도 종성 결합 허용 (MS윈도 호환).
