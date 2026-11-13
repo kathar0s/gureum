@@ -63,6 +63,35 @@ Debug Configuration으로 빌드하면 Console.app에서 로그를 확인할 수
 
 ## 디버그 빌드 테스트
 
+### GureumChordLab 실험 빌드
+
+기존 구름과 함께 사용할 수 있는 별도 입력기입니다. 앱 이름은 `GureumChordLab.app`이며,
+입력 소스와 설정 영역도 분리되어 있습니다. Firebase 초기화 및 구름 업데이트 확인은 사용하지 않습니다.
+
+```sh
+./tools/install_chord_lab.sh --build-only
+```
+
+서명 검증을 마친 앱은 `build/chord-lab/Build/Products/Debug/GureumChordLab.app`에 생성됩니다.
+입력기는 앱을 더블클릭하는 대신 다음 전용 설치 명령으로 사용자 입력기 폴더에 설치합니다.
+
+```sh
+./tools/install_chord_lab.sh --install
+```
+
+시스템 설정 → 키보드 → 텍스트 입력에서 `Lab ·`로 시작하는 원하는 자판을 추가합니다.
+목록에 나타나지 않으면 로그아웃 후 다시 로그인합니다. 아래 명령은 실험 앱만 제거하며,
+이전 실험 앱은 `build/chord-lab/backups/`에 보존합니다.
+
+```sh
+./tools/install_chord_lab.sh --uninstall
+```
+
+이 단계의 빌드는 기존 순차 입력과 자동 순서 교정을 유지합니다.
+물리적 모아치기 활성화는 앱별 키 해제 이벤트 계측을 통과한 뒤 별도로 검증합니다.
+
+### 일반 구름 디버그 설치
+
 > 어떠한 경우에도 Xcode에서 Run으로 구름 입력기를 실행하거나 빌드한 구름 입력기 앱을 직접 실행하면 **절대** 안됩니다.
 
 디버그 모드로 빌드한 입력기를 설치합니다.
