@@ -255,13 +255,21 @@ extension InputReceiver {  // IMKServerInput
 
 extension InputReceiver {  // IMKStateSetting
   //! @brief  마우스 이벤트를 잡을 수 있게 한다.
-  func recognizedEvents(_: IMKTextInput & IMKUnicodeTextInput) -> NSEvent.EventTypeMask {
+  func recognizedEvents(
+    _: IMKTextInput & IMKUnicodeTextInput, identity: InputMethodIdentity = .current
+  ) -> NSEvent.EventTypeMask {
     dlog(debugLogging, "LOGGING::CHECK::RECOGNIZEDEVENTS")
     // NSFlagsChangeMask는 -handleEvent: 에서만 동작
-    return NSEvent.EventTypeMask(
+    let events = NSEvent.EventTypeMask(
       arrayLiteral: .keyDown, .flagsChanged, .leftMouseUp, .rightMouseUp, .leftMouseDown,
       .rightMouseDown, .leftMouseDragged, .rightMouseDragged, .appKitDefined, .applicationDefined,
       .systemDefined)
+    #if DEBUG
+      if identity.isChordLab {
+        return events.union(.keyUp)
+      }
+    #endif
+    return events
   }
 
   //! @brief 자판 전환을 감지한다.

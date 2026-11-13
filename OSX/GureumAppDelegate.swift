@@ -70,7 +70,7 @@ class GureumAppDelegate: NSObject, NSApplicationDelegate, GureumApplicationDeleg
     }
 
     // 입력 모니터링 권한 요청
-    if #available(macOS 10.15, *) {
+    if !InputMethodIdentity.current.isChordLab, #available(macOS 10.15, *) {
       IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
     }
 

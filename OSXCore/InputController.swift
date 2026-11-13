@@ -9,6 +9,13 @@
 import Foundation
 import InputMethodKit
 
+#if DEBUG
+  import os
+
+  private let chordLabEventLogger = Logger(
+    subsystem: "io.github.kathar0s.inputmethod.GureumChordLab", category: "KeyEvents")
+#endif
+
 let debugLogging = false
 let debugInputController = false
 let debugSpying = true
@@ -50,6 +57,9 @@ public class InputController: IMKInputController {
   var receiver: InputReceiver!
   var lastFlags = NSEvent.ModifierFlags(rawValue: 0)
   var updating = false
+  #if DEBUG
+    private lazy var chordLabControllerToken = UUID().uuidString
+  #endif
 
   override init!(server: IMKServer, delegate: Any!, client inputClient: Any) {
     super.init(server: server, delegate: delegate, client: inputClient)
@@ -113,6 +123,21 @@ extension InputController {  // IMKServerInputHandleEvent
     // dlog(debugInputController, "event: \(event)")
     // sender is (IMKTextInput & IMKUnicodeTextInput & IMTSMSupport)
     let client = asClient(sender)
+
+    #if DEBUG
+      if InputMethodIdentity.current.isChordLab,
+        event.type == .keyDown || event.type == .keyUp
+      {
+        let eventType = event.type == .keyDown ? "keyDown" : "keyUp"
+        let clientBundleIdentifier = client.bundleIdentifier() ?? "unknown"
+        chordLabEventLogger.notice(
+          "CHORDLAB_EVENT type=\(eventType, privacy: .public) timestamp=\(event.timestamp, privacy: .public) keyCode=\(event.keyCode, privacy: .public) repeat=\(event.isARepeat, privacy: .public) modifiers=\(event.modifierFlags.rawValue, privacy: .public) client=\(clientBundleIdentifier, privacy: .public) controller=\(self.chordLabControllerToken, privacy: .public)"
+        )
+        if event.type == .keyUp {
+          return false
+        }
+      }
+    #endif
 
     switch event.type {
     case .keyDown:
