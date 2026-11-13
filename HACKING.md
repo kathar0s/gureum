@@ -90,6 +90,47 @@ Debug Configuration으로 빌드하면 Console.app에서 로그를 확인할 수
 이 단계의 빌드는 기존 순차 입력과 자동 순서 교정을 유지합니다.
 물리적 모아치기 활성화는 앱별 키 해제 이벤트 계측을 통과한 뒤 별도로 검증합니다.
 
+### Lab 키 이벤트 계측
+
+Debug 계측 빌드는 Lab 입력 소스에서만 키 누름·해제 메타데이터를 기록합니다. Release 빌드에서는
+키 해제 관찰과 이벤트 로그가 모두 제외됩니다. 키 입력은 기존
+조합기로 즉시 전달되고 키 해제는 관찰만 합니다. 문자·조합 문자열·문서 내용은 기록하지 않습니다.
+키 코드는 입력을 추정하는 데 쓰일 수 있으므로 짧고 민감하지 않은 시험 문구만 사용합니다.
+Lab은 접근성이나 입력 모니터링 권한을 요청하지 않습니다.
+
+등록된 Lab 자판과 현재 입력 소스를 확인할 수 있습니다.
+
+```sh
+./tools/chord_lab_input_source.sh list
+./tools/chord_lab_input_source.sh current
+```
+
+원하는 자판을 선택하면 이전 입력 소스를 파일에 저장합니다. 예를 들어 최종 자판은 `han3final`,
+390은 `han390`, 최종 순아래는 `han3finalnoshift`, 2012는 `han3-2012`입니다.
+이 도구는 이전 입력 소스를 비활성화하지 않습니다.
+
+```sh
+./tools/chord_lab_input_source.sh select han3final
+./tools/capture_chord_lab_events.sh 60
+./tools/chord_lab_input_source.sh restore
+```
+
+새로 설치한 입력기가 등록되어도 현재 로그인 세션에서 선택되지 않아 `OSStatus -50`이 나올 수 있습니다.
+이 경우 시스템 설정에서 Lab 자판을 추가하거나 로그아웃 후 다시 로그인한 뒤 같은 명령을 실행합니다.
+선택 실패 후에도 `restore`로 저장된 이전 입력 소스를 다시 선택할 수 있습니다.
+
+캡처는 `/tmp/gureum-chord-lab-capture.*/events.ndjson`에 저장합니다. 정확한 로그 필터는 다음과 같습니다.
+
+```text
+process == "GureumChordLab" AND subsystem == "io.github.kathar0s.inputmethod.GureumChordLab" AND category == "KeyEvents" AND eventMessage BEGINSWITH "CHORDLAB_EVENT"
+```
+
+각 이벤트에는 종류, 시스템 가동 시간 기준 시각, 숫자 키 코드, 반복 여부, modifier 값,
+클라이언트 번들 ID와 임의 컨트롤러 토큰만 포함합니다. TextEdit, Terminal, Chromium 입력란,
+VS Code 터미널에서 각각 실제 키를 눌렀다 떼며 `keyDown`/`keyUp` 쌍이 기록되는지 확인합니다.
+합성 이벤트는 이 검증을 대체하지 않습니다. 키 해제가 누락된 앱은 물리적 모아치기 지원 대상으로
+확정하지 않으며, 계측 결과만으로 입력 방식이 변경되지는 않습니다.
+
 ### 일반 구름 디버그 설치
 
 > 어떠한 경우에도 Xcode에서 Run으로 구름 입력기를 실행하거나 빌드한 구름 입력기 앱을 직접 실행하면 **절대** 안됩니다.
