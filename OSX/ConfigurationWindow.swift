@@ -9,7 +9,12 @@
 import Cocoa
 import Foundation
 
-final class ConfiguraionWindowController: NSWindowController {}
+final class ConfiguraionWindowController: NSWindowController {
+  override func windowDidLoad() {
+    super.windowDidLoad()
+    window?.contentMinSize = NSSize(width: 600, height: 560)
+  }
+}
 
 final class PreferencePaneViewController: NSViewController {
   private let isAtLeast1015 = ProcessInfo().isOperatingSystemAtLeast(
@@ -58,7 +63,18 @@ final class PreferencePaneViewController: NSViewController {
       NSLog("Preferences lookup failed.")
       return viewForFailure()
     }
-    return vc.view
+    addChild(vc)
+    let content = vc.view
+    let host = NSView(frame: content.frame)
+    content.translatesAutoresizingMaskIntoConstraints = false
+    host.addSubview(content)
+    NSLayoutConstraint.activate([
+      content.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+      content.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+      content.topAnchor.constraint(equalTo: host.topAnchor),
+      content.bottomAnchor.constraint(equalTo: host.bottomAnchor),
+    ])
+    return host
   }
 
   override func loadView() {

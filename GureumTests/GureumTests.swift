@@ -57,6 +57,21 @@ class GureumTests: XCTestCase {
     XCTAssertTrue(loaded)
   }
 
+  func testPreferencesHostAppliesMinimumWindowSizeAndRetainsChildController() throws {
+    let storyboard = NSStoryboard(name: "Configuration", bundle: .main)
+    let controller = try XCTUnwrap(storyboard.instantiateInitialController() as? NSWindowController)
+    let window = try XCTUnwrap(controller.window)
+    defer { window.close() }
+
+    XCTAssertEqual(window.contentMinSize, NSSize(width: 600, height: 560))
+    let host = try XCTUnwrap(window.contentViewController)
+    _ = host.view
+    XCTAssertEqual(host.children.count, 1)
+    let child = try XCTUnwrap(host.children.first)
+    XCTAssertTrue(child.parent === host)
+    XCTAssertTrue(child.view.superview === host.view)
+  }
+
   func testNotifyUpdate() {
     let data = """
       {
