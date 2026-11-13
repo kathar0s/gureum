@@ -1033,6 +1033,40 @@ class InputMethodIdentityTests: XCTestCase {
     XCTAssertFalse(upstream.hangulAutoReorder)
     XCTAssertTrue(lab.hangulAutoReorder)
   }
+
+  func testUpstreamRecognizedEventsDoNotRequestKeyUp() throws {
+    let app = ModerateApp()
+    let mask = app.controller.receiver.recognizedEvents(app.client, identity: try identity())
+
+    XCTAssertTrue(mask.contains(.keyDown))
+    XCTAssertFalse(mask.contains(.keyUp))
+  }
+
+  func testLabRecognizedEventsRequestKeyUpOnlyInDebugBuilds() throws {
+    let app = ModerateApp()
+    let mask = app.controller.receiver.recognizedEvents(app.client, identity: try labIdentity())
+
+    XCTAssertTrue(mask.contains(.keyDown))
+    #if DEBUG
+      XCTAssertTrue(mask.contains(.keyUp))
+    #else
+      XCTAssertFalse(mask.contains(.keyUp))
+    #endif
+  }
+
+  func testLabRecognizedEventsOnlyDifferFromUpstreamInDebugBuilds() throws {
+    let app = ModerateApp()
+    let receiver = app.controller.receiver!
+    let upstream = receiver.recognizedEvents(app.client, identity: try identity())
+    let lab = receiver.recognizedEvents(app.client, identity: try labIdentity())
+
+    #if DEBUG
+      XCTAssertEqual(lab.subtracting(upstream), .keyUp)
+    #else
+      XCTAssertEqual(lab, upstream)
+    #endif
+    XCTAssertEqual(upstream.subtracting(lab), [])
+  }
 }
 
 class Han3FinalNoShiftTests: XCTestCase {
