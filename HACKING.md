@@ -8,6 +8,26 @@
 
 ## 개발환경 설정
 
+### 지원 환경
+
+- 실행 대상: macOS 12 이상. 구름과 `libhangul-objc` 프로젝트에 같은 최소 버전을 사용합니다.
+- CI: GitHub Actions `macos-15` 이미지의 Xcode 26.2를 명시적으로 선택합니다.
+- 최신 도구 호환성: 로컬 Mac의 Xcode 27.1에서도 아래 빌드·테스트 명령을 검증합니다.
+
+릴리스 서명 인증서 없이 빌드와 유닛 테스트를 실행할 수 있습니다.
+
+```sh
+xcodebuild -project Gureum.xcodeproj -scheme OSX -sdk macosx \
+  -destination 'platform=macOS' test \
+  -onlyUsePackageVersionsFromResolvedFile \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+```
+
+최소 macOS 버전은 프로젝트에 저장되어 있으므로 명령행에서 `MACOSX_DEPLOYMENT_TARGET`을 덮어쓸 필요가 없습니다.
+위 명령은 테스트용입니다. 입력기를 실제 설치할 때는 별도로 앱 서명과 입력 소스 등록을 확인해야 합니다.
+Swift 패키지는 `Gureum.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`에 고정합니다.
+의존성을 갱신할 때만 이 파일을 업데이트하고, CI는 고정된 버전을 사용합니다.
+
 ### git submodule 가져오기
 
 libhangul의 라이선스 전파성을 피하기 위해 프로젝트를 분리하여 준비가 조금 복잡합니다.
@@ -15,11 +35,15 @@ libhangul의 라이선스 전파성을 피하기 위해 프로젝트를 분리�
 git submodule을 포함하고 있으므로 클론 후 submodule도 가져오도록 해야합니다.
 
 ``` sh
-git clone https://github.com/gureum/gureum.git  # 클론
+git clone --recurse-submodules https://github.com/kathar0s/gureum.git
 cd gureum
 make init
 open Gureum.xcodeproj
 ```
+
+이 포크의 `libhangul-objc`는 `kathar0s/libhangul-objc`에서 버전이 고정된 커밋을 가져옵니다.
+서브모듈의 빌드 설정을 바꿀 때는 해당 포크에 커밋을 먼저 푸시한 뒤 부모 저장소의 서브모듈 커밋을 갱신합니다.
+원본 변경을 비교하려면 서브모듈 안에서 `https://github.com/gureum/libhangul-objc.git`을 `upstream` 원격으로 사용합니다.
 
 submodule의 URL 변경 등을 이유로 submodule이 제대로 클론되지 않을 경우에는 다음 명령어로 다시 가져올 수 있습니다.
 
