@@ -1084,6 +1084,859 @@ class InputMethodIdentityTests: XCTestCase {
   }
 }
 
+private final class FakePhysicalKeyEventSource: PhysicalKeyEventSourceProtocol {
+  var status: PhysicalKeySourceStatus = .healthy
+  var permissionGranted = true
+  var secureInputEnabled = false
+  var refreshAction: (() -> Void)?
+  private(set) var startCallCount = 0
+  private(set) var stopCallCount = 0
+  private var leases: Set<UUID> = []
+  var activeLeaseCount: Int { leases.count }
+  private var observers: [UUID: (PhysicalKeySourceEvent) -> Void] = [:]
+
+  func acquireLease(_ token: UUID) {
+    if leases.isEmpty { startCallCount += 1 }
+    leases.insert(token)
+  }
+  func releaseLease(_ token: UUID) {
+    guard leases.remove(token) != nil else { return }
+    if leases.isEmpty { stopCallCount += 1 }
+  }
+  func refresh() { refreshAction?() }
+  func addObserver(_ observer: @escaping (PhysicalKeySourceEvent) -> Void) -> UUID {
+    let token = UUID()
+    observers[token] = observer
+    return token
+  }
+  func removeObserver(_ token: UUID) { observers.removeValue(forKey: token) }
+  func emit(_ event: PhysicalKeySourceEvent) {
+    for observer in Array(observers.values) { observer(event) }
+  }
+}
+
+private final class ChordCoordinatorFixture {
+  final class State {
+    var now: TimeInterval = 0
+    var enabled = true
+    var replayed: [ChordStroke] = []
+    var disabled: [ChordFlushReason] = []
+    var outcome = ChordTerminalOutcome.composerReplay
+  }
+
+  let source = FakePhysicalKeyEventSource()
+  let state = State()
+  let coordinator: ChordInputCoordinator
+
+  init(
+    enabled: Bool = true, watchdog: TimeInterval = 2, maxOrphans: Int = 32, maxStrokes: Int = 64,
+    acceptsRelease: @escaping (Int) -> Bool = { _ in true }
+  ) {
+    let state = state
+    state.enabled = enabled
+    coordinator = ChordInputCoordinator(
+      source: source, clock: { state.now }, isEnabled: { state.enabled },
+      acceptsRelease: acceptsRelease, watchdog: watchdog,
+      orphanLifetime: 0.25, maxOrphans: maxOrphans, maxStrokes: maxStrokes,
+      onDisabled: { state.disabled.append($0) },
+      replay: {
+        state.replayed.append($0)
+        return state.outcome
+      })
+    coordinator.activate()
+  }
+
+  @discardableResult func press(
+    _ keyCode: Int, at timestamp: TimeInterval = 0, isRepeat: Bool = false
+  ) -> Bool {
+    coordinator.consume(
+      keyCode: keyCode, text: "key\(keyCode)", modifiers: 0, timestamp: timestamp,
+      isRepeat: isRepeat)
+  }
+
+  func release(_ keyCode: Int, at timestamp: TimeInterval = 0.1) {
+    source.emit(.keyUp(keyCode: keyCode, timestamp: timestamp))
+  }
+}
+
+class ChordInputCoordinatorTests: XCTestCase {
+  func testLeaseStopsOnLastDeactivationAndRestartsOnActivation() {
+    let fixture = ChordCoordinatorFixture()
+    XCTAssertEqual(fixture.source.activeLeaseCount, 1)
+    XCTAssertEqual(fixture.source.startCallCount, 1)
+
+    fixture.coordinator.deactivate()
+    XCTAssertEqual(fixture.source.activeLeaseCount, 0)
+    XCTAssertEqual(fixture.source.stopCallCount, 1)
+    fixture.coordinator.activate()
+    XCTAssertEqual(fixture.source.activeLeaseCount, 1)
+    XCTAssertEqual(fixture.source.startCallCount, 2)
+  }
+
+  func testFatalWatchdogReleasesTheSourceLease() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(1)
+    fixture.coordinator.checkTimeout(now: 2)
+
+    XCTAssertEqual(fixture.source.activeLeaseCount, 0)
+    XCTAssertEqual(fixture.source.stopCallCount, 1)
+    XCTAssertEqual(fixture.coordinator.disabledReason, .watchdog)
+  }
+
+  func testTrailingUnconsumedShortcutReleaseIsIgnoredAfterBoundary() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(1)
+    fixture.coordinator.flushBoundary(.shortcut, ignoringReleaseOf: 2, timestamp: 0.01)
+    fixture.release(1, at: 0.02)
+    fixture.release(2, at: 0.03)
+    fixture.coordinator.checkTimeout(now: 0.4)
+
+    XCTAssertNil(fixture.coordinator.disabledReason)
+    XCTAssertEqual(fixture.source.activeLeaseCount, 1)
+    XCTAssertTrue(fixture.press(3, at: 0.5))
+    fixture.release(3, at: 0.6)
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1, 3])
+  }
+
+  func testSourceEventsAfterDeactivationDoNotBufferOrReplay() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.coordinator.deactivate()
+    fixture.release(1)
+    fixture.source.emit(.heartbeat(timestamp: 5))
+
+    XCTAssertEqual(fixture.source.activeLeaseCount, 0)
+    XCTAssertTrue(fixture.state.replayed.isEmpty)
+    XCTAssertEqual(fixture.coordinator.bufferedStrokeCount, 0)
+    XCTAssertEqual(fixture.coordinator.terminalCount, 0)
+  }
+
+  func testIneligibleReleaseNeverBecomesAnExpiringOrphan() {
+    let fixture = ChordCoordinatorFixture(acceptsRelease: { $0 != KeyCode.space.rawValue })
+    fixture.release(KeyCode.space.rawValue)
+
+    fixture.coordinator.checkTimeout(now: 0.25)
+
+    XCTAssertNil(fixture.coordinator.disabledReason)
+    XCTAssertEqual(fixture.coordinator.consumedStrokeCount, 0)
+    XCTAssertTrue(fixture.press(KeyCode.ansiK.rawValue, at: 0.3))
+    fixture.release(KeyCode.ansiK.rawValue, at: 0.4)
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [KeyCode.ansiK.rawValue])
+  }
+
+  func testReactivationFlushesThePreviousGroupBeforeAcceptingNewInput() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(1)
+
+    fixture.coordinator.activate()
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1])
+    XCTAssertEqual(fixture.coordinator.recentTerminations.map(\.reason), [.clientChanged])
+    XCTAssertEqual(fixture.coordinator.outstandingStrokeCount, 0)
+    XCTAssertNil(fixture.coordinator.disabledReason)
+    XCTAssertTrue(fixture.press(2, at: 0.2))
+    fixture.release(2, at: 0.3)
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1, 2])
+    XCTAssertEqual(fixture.coordinator.terminalCount, fixture.coordinator.consumedStrokeCount)
+  }
+
+  func testDisabledModeNeverStartsThePhysicalEventSource() {
+    let fixture = ChordCoordinatorFixture(enabled: false)
+
+    XCTAssertEqual(fixture.source.startCallCount, 0)
+    XCTAssertNil(fixture.coordinator.disabledReason)
+    XCTAssertFalse(fixture.coordinator.isActive)
+    XCTAssertFalse(fixture.press(1))
+  }
+
+  func testReactivationAfterOptOutDoesNotRestartThePhysicalEventSource() {
+    let fixture = ChordCoordinatorFixture()
+    XCTAssertEqual(fixture.source.startCallCount, 1)
+    fixture.coordinator.deactivate()
+    fixture.state.enabled = false
+
+    fixture.coordinator.activate()
+
+    XCTAssertEqual(fixture.source.startCallCount, 1)
+    XCTAssertNil(fixture.coordinator.disabledReason)
+    XCTAssertFalse(fixture.coordinator.isActive)
+  }
+
+  func testDisabledModePassesThroughWithoutConsuming() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.state.enabled = false
+
+    XCTAssertFalse(fixture.press(1))
+    XCTAssertNil(fixture.coordinator.disabledReason)
+    XCTAssertFalse(fixture.coordinator.isActive)
+    XCTAssertEqual(fixture.coordinator.consumedStrokeCount, 0)
+  }
+
+  func testUnhealthySourcePassesThroughWithoutConsuming() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.source.status = .unavailable
+
+    XCTAssertFalse(fixture.press(1))
+    XCTAssertEqual(fixture.coordinator.disabledReason, .tapDisabled)
+    XCTAssertEqual(fixture.coordinator.consumedStrokeCount, 0)
+  }
+
+  func testDisablingModeFlushesBeforePassingThroughTheNextDown() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(1)
+    fixture.state.enabled = false
+
+    XCTAssertFalse(fixture.press(2, at: 0.01))
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1])
+    XCTAssertNil(fixture.coordinator.disabledReason)
+    XCTAssertFalse(fixture.coordinator.isActive)
+    XCTAssertEqual(fixture.coordinator.consumedStrokeCount, 1)
+    XCTAssertEqual(fixture.coordinator.terminalCount, 1)
+  }
+
+  func testPermissionDeniedPassesThroughWithoutConsuming() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.source.permissionGranted = false
+
+    XCTAssertFalse(fixture.press(1))
+    XCTAssertEqual(fixture.coordinator.disabledReason, .permissionLost)
+    XCTAssertEqual(fixture.coordinator.consumedStrokeCount, 0)
+  }
+
+  func testPermissionRevocationFlushesBufferedStrokeExactlyOnce() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(1)
+    fixture.source.permissionGranted = false
+    fixture.source.emit(.statusChanged(.permissionDenied))
+    fixture.release(1)
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1])
+    XCTAssertEqual(fixture.coordinator.disabledReason, .permissionLost)
+    XCTAssertEqual(fixture.coordinator.terminalCount, 1)
+    XCTAssertEqual(fixture.coordinator.outstandingStrokeCount, 0)
+  }
+
+  func testPermissionLossDuringRefreshFlushesBeforeRejectingNextDown() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(1)
+    let source = fixture.source
+    source.refreshAction = { [weak source] in source?.permissionGranted = false }
+
+    XCTAssertFalse(fixture.press(2, at: 0.01))
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1])
+    XCTAssertEqual(fixture.coordinator.disabledReason, .permissionLost)
+    XCTAssertEqual(fixture.coordinator.consumedStrokeCount, 1)
+    XCTAssertEqual(fixture.coordinator.terminalCount, 1)
+  }
+
+  func testSecureInputFlushesAndDisablesBuffering() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(1)
+    fixture.source.secureInputEnabled = true
+    fixture.coordinator.checkTimeout(now: 0.1)
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1])
+    XCTAssertEqual(fixture.coordinator.disabledReason, .secureInput)
+    XCTAssertFalse(fixture.press(2))
+  }
+
+  func testTapDisableFlushesAndDisablesBuffering() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(1)
+    fixture.source.emit(.statusChanged(.tapDisabled))
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1])
+    XCTAssertEqual(fixture.coordinator.disabledReason, .tapDisabled)
+    XCTAssertFalse(fixture.press(2))
+  }
+
+  func testSourceStopFlushesAndDisablesBuffering() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(1)
+    fixture.source.emit(.statusChanged(.stopped))
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1])
+    XCTAssertNil(fixture.coordinator.disabledReason)
+    XCTAssertFalse(fixture.coordinator.isActive)
+  }
+
+  func testKeyReleaseAfterDownCompletesOneStroke() {
+    let fixture = ChordCoordinatorFixture()
+    XCTAssertTrue(fixture.press(1))
+    XCTAssertEqual(fixture.coordinator.bufferedStrokeCount, 1)
+    XCTAssertTrue(fixture.state.replayed.isEmpty)
+
+    fixture.release(1)
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1])
+    XCTAssertEqual(fixture.coordinator.bufferedStrokeCount, 0)
+    XCTAssertEqual(fixture.coordinator.terminalCount, 1)
+  }
+
+  func testKeyReleaseArrivingBeforeImkDownMatchesByTimestamp() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.release(1, at: 0.1)
+
+    XCTAssertTrue(fixture.press(1, at: 0.05))
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1])
+    XCTAssertEqual(fixture.coordinator.terminalCount, 1)
+    XCTAssertNil(fixture.coordinator.disabledReason)
+  }
+
+  func testOverlappingKeysWaitForFinalReleaseAndPreservePressOrder() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(3)
+    fixture.press(1, at: 0.01)
+    fixture.release(3, at: 0.02)
+    XCTAssertTrue(fixture.state.replayed.isEmpty)
+
+    fixture.release(1, at: 0.03)
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [3, 1])
+    XCTAssertEqual(fixture.coordinator.terminalCount, 2)
+  }
+
+  func testReverseReleaseOrderPreservesOriginalPressOrder() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(3)
+    fixture.press(1, at: 0.01)
+    fixture.release(1, at: 0.02)
+    fixture.release(3, at: 0.03)
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [3, 1])
+  }
+
+  func testRollingOverlapStaysInOneGroupUntilHeldSetIsEmpty() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(1)
+    fixture.press(2, at: 0.01)
+    fixture.release(1, at: 0.02)
+    fixture.press(3, at: 0.03)
+    fixture.release(2, at: 0.04)
+    XCTAssertTrue(fixture.state.replayed.isEmpty)
+
+    fixture.release(3, at: 0.05)
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1, 2, 3])
+  }
+
+  func testBrokenOverlapChainCompletesBeforeNextGroup() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(1)
+    fixture.release(1, at: 0.01)
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1])
+
+    fixture.press(2, at: 0.02)
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1])
+    fixture.release(2, at: 0.03)
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1, 2])
+  }
+
+  func testRepressAfterReleaseAddsDistinctStrokeWhileAnotherKeyIsHeld() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(1)
+    fixture.press(2, at: 0.01)
+    fixture.release(1, at: 0.02)
+    fixture.press(1, at: 0.03)
+    fixture.release(2, at: 0.04)
+    fixture.release(1, at: 0.05)
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1, 2, 1])
+    XCTAssertEqual(fixture.state.replayed.map(\.id), [1, 2, 3])
+  }
+
+  func testAutoRepeatIsAccountedForWithoutDuplicatingReplay() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(1)
+    fixture.press(1, at: 0.01, isRepeat: true)
+    fixture.release(1, at: 0.02)
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1])
+    XCTAssertEqual(fixture.coordinator.consumedStrokeCount, 2)
+    XCTAssertEqual(fixture.coordinator.terminalCount, 2)
+    XCTAssertEqual(
+      fixture.coordinator.recentTerminations.map(\.outcome), [.repeatSuppression, .composerReplay])
+  }
+
+  func testRepeatWithoutHeldKeyPassesThroughWithoutConsumption() {
+    let fixture = ChordCoordinatorFixture()
+
+    XCTAssertFalse(fixture.press(1, isRepeat: true))
+    XCTAssertEqual(fixture.coordinator.disabledReason, .unmatchedEvent)
+    XCTAssertEqual(fixture.coordinator.consumedStrokeCount, 0)
+  }
+
+  func testDuplicateNonRepeatDownFlushesBothStrokesAndDisables() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(1)
+    fixture.press(1, at: 0.01)
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1, 1])
+    XCTAssertEqual(fixture.coordinator.disabledReason, .unmatchedEvent)
+    XCTAssertEqual(fixture.coordinator.terminalCount, 2)
+  }
+
+  func testGroupOverflowFlushesEveryConsumedStroke() {
+    let fixture = ChordCoordinatorFixture(maxStrokes: 2)
+    fixture.press(1)
+    fixture.press(2, at: 0.01)
+    fixture.press(3, at: 0.02)
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1, 2, 3])
+    XCTAssertEqual(fixture.coordinator.disabledReason, .groupOverflow)
+    XCTAssertEqual(fixture.coordinator.terminalCount, fixture.coordinator.consumedStrokeCount)
+    XCTAssertEqual(fixture.coordinator.outstandingStrokeCount, 0)
+  }
+
+  func testOrphanOverflowDisablesWithoutConsumingInput() {
+    let fixture = ChordCoordinatorFixture(maxOrphans: 1)
+    fixture.release(1)
+    fixture.release(2)
+
+    XCTAssertEqual(fixture.coordinator.disabledReason, .orphanOverflow)
+    XCTAssertEqual(fixture.coordinator.consumedStrokeCount, 0)
+    XCTAssertTrue(fixture.state.replayed.isEmpty)
+  }
+
+  func testExpiredOrphanIsDroppedAndTheNextChordStillWorks() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.release(1)
+    fixture.coordinator.checkTimeout(now: 0.249)
+    XCTAssertNil(fixture.coordinator.disabledReason)
+
+    fixture.coordinator.checkTimeout(now: 0.25)
+
+    XCTAssertNil(fixture.coordinator.disabledReason)
+    XCTAssertEqual(fixture.coordinator.expiredOrphanCount, 1)
+    XCTAssertTrue(fixture.press(2, at: 0.3))
+    fixture.release(2, at: 0.4)
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [2])
+  }
+
+  func testMissingReleaseWatchdogFlushesAtInclusiveDeadline() {
+    let fixture = ChordCoordinatorFixture(watchdog: 2)
+    fixture.press(1)
+    fixture.coordinator.checkTimeout(now: 1.999)
+    XCTAssertTrue(fixture.state.replayed.isEmpty)
+
+    fixture.source.emit(.heartbeat(timestamp: 2))
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1])
+    XCTAssertEqual(fixture.coordinator.disabledReason, .watchdog)
+    XCTAssertEqual(fixture.coordinator.recentTerminations.map(\.outcome), [.safetyFlush])
+  }
+
+  func testDeactivationFlushesAndPreventsFurtherConsumption() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(1)
+    fixture.coordinator.deactivate()
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1])
+    XCTAssertNil(fixture.coordinator.disabledReason)
+    XCTAssertFalse(fixture.coordinator.isActive)
+    XCTAssertFalse(fixture.press(2))
+  }
+
+  func testActivatingAnotherClientFlushesOnlyTheOriginalClient() {
+    let original = ChordCoordinatorFixture()
+    original.press(1)
+
+    let next = ChordCoordinatorFixture()
+
+    XCTAssertEqual(original.state.replayed.map(\.keyCode), [1])
+    XCTAssertNil(original.coordinator.disabledReason)
+    XCTAssertFalse(original.coordinator.isActive)
+    XCTAssertTrue(next.state.replayed.isEmpty)
+    XCTAssertTrue(next.press(2))
+    next.release(2)
+    XCTAssertEqual(next.state.replayed.map(\.keyCode), [2])
+  }
+
+  func testOrdinaryBoundariesFlushAndAllowTheNextChord() {
+    for reason: ChordFlushReason in [
+      .layoutChanged, .mouse, .command, .shortcut, .candidate, .nonMappable,
+    ] {
+      let fixture = ChordCoordinatorFixture()
+      fixture.press(3)
+      fixture.press(1, at: 0.01)
+      fixture.coordinator.flushBoundary(reason)
+
+      XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [3, 1], reason.rawValue)
+      XCTAssertNil(fixture.coordinator.disabledReason)
+      XCTAssertTrue(fixture.coordinator.isActive)
+      XCTAssertEqual(fixture.coordinator.terminalCount, fixture.coordinator.consumedStrokeCount)
+      XCTAssertEqual(fixture.coordinator.outstandingStrokeCount, 0)
+      fixture.release(3, at: 0.02)
+      fixture.release(1, at: 0.03)
+      XCTAssertTrue(fixture.press(2, at: 0.04))
+      fixture.release(2, at: 0.05)
+      XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [3, 1, 2])
+      XCTAssertNil(fixture.coordinator.disabledReason)
+    }
+  }
+
+  func testComposerReplayRecordsComposerOutcome() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(1)
+    fixture.release(1)
+
+    XCTAssertEqual(fixture.coordinator.recentTerminations.map(\.outcome), [.composerReplay])
+  }
+
+  func testLiteralFallbackRecordsLiteralOutcomeExactlyOnce() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.state.outcome = .literalFallback
+    fixture.press(1)
+    fixture.release(1)
+
+    XCTAssertEqual(fixture.coordinator.recentTerminations.map(\.outcome), [.literalFallback])
+    XCTAssertEqual(fixture.coordinator.terminalCount, 1)
+    XCTAssertEqual(fixture.coordinator.outstandingStrokeCount, 0)
+  }
+
+  func testFinalReleaseBeforeWatchdogTerminatesStrokeOnlyOnce() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(1)
+    fixture.release(1, at: 2)
+    fixture.coordinator.checkTimeout(now: 2)
+
+    XCTAssertEqual(fixture.state.replayed.count, 1)
+    XCTAssertEqual(fixture.coordinator.terminalCount, 1)
+    XCTAssertNil(fixture.coordinator.disabledReason)
+  }
+
+  func testWatchdogBeforeFinalReleaseTerminatesStrokeOnlyOnce() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(1)
+    fixture.coordinator.checkTimeout(now: 2)
+    fixture.release(1, at: 2)
+
+    XCTAssertEqual(fixture.state.replayed.count, 1)
+    XCTAssertEqual(fixture.coordinator.terminalCount, 1)
+    XCTAssertEqual(fixture.coordinator.disabledReason, .watchdog)
+  }
+
+  func testReleaseTimestampBeforeDownTriggersSafetyFlush() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(1, at: 0.2)
+    fixture.release(1, at: 0.1)
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1])
+    XCTAssertEqual(fixture.coordinator.disabledReason, .timestampMismatch)
+    XCTAssertEqual(fixture.coordinator.terminalCount, 1)
+  }
+
+  func testDownTimestampBeforePreviousCompletionTriggersSafetyFlush() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.press(1)
+    fixture.release(1, at: 0.1)
+    fixture.press(2, at: 0.05)
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1, 2])
+    XCTAssertEqual(fixture.coordinator.disabledReason, .timestampMismatch)
+    XCTAssertEqual(fixture.coordinator.terminalCount, 2)
+  }
+
+  func testStaleOrphanDoesNotReleaseANewerPressOfTheSameKey() {
+    let fixture = ChordCoordinatorFixture()
+    fixture.release(1, at: 0.1)
+    fixture.press(1, at: 0.2)
+
+    XCTAssertTrue(fixture.state.replayed.isEmpty)
+    XCTAssertEqual(fixture.coordinator.bufferedStrokeCount, 1)
+
+    fixture.coordinator.checkTimeout(now: 0.25)
+
+    XCTAssertTrue(fixture.state.replayed.isEmpty)
+    XCTAssertEqual(fixture.coordinator.bufferedStrokeCount, 1)
+    XCTAssertNil(fixture.coordinator.disabledReason)
+    fixture.release(1, at: 0.3)
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1])
+    XCTAssertEqual(fixture.coordinator.terminalCount, 1)
+  }
+
+  func testInvalidEventDoesNotConsumeOrBufferInput() {
+    let fixture = ChordCoordinatorFixture()
+
+    XCTAssertFalse(
+      fixture.coordinator.consume(
+        keyCode: 1, text: "", modifiers: 0, timestamp: 0, isRepeat: false))
+    XCTAssertFalse(fixture.press(1, at: .nan))
+    XCTAssertFalse(fixture.press(1, at: -1))
+    XCTAssertEqual(fixture.coordinator.consumedStrokeCount, 0)
+    XCTAssertEqual(fixture.coordinator.bufferedStrokeCount, 0)
+  }
+}
+
+private final class ChordHandleTestController: InputController {
+  var testClient: MockInputClient
+  private var handlingEvent = false
+
+  init(client: MockInputClient) {
+    testClient = client
+    super.init()
+    receiver = InputReceiver(
+      server: InputMethodServer.shared.server, delegate: client, client: client, controller: self)
+  }
+
+  override func client() -> (IMKTextInput & NSObjectProtocol)! {
+    if handlingEvent { return testClient }
+    return super.client() ?? testClient
+  }
+
+  override func handle(_ event: NSEvent, client sender: Any) -> Bool {
+    handlingEvent = true
+    defer { handlingEvent = false }
+    return super.handle(event, client: sender)
+  }
+
+  override func selectionRange() -> NSRange { client().selectedRange() }
+
+  override func updateComposition() {
+    let target = client() as! MockInputClient
+    let composed = receiver.composedString(target)
+    target.setMarkedText(
+      composed, selectedRange: NSRange(location: 0, length: composed.count),
+      replacementRange: target.markedRange())
+  }
+
+  override func cancelComposition() {
+    receiver.cancelCompositionEvent()
+    let target = client() as! MockInputClient
+    target.setMarkedText(
+      "", selectedRange: NSRange(location: 0, length: 0), replacementRange: target.markedRange())
+  }
+}
+
+private final class ChordHandleFixture {
+  let source = FakePhysicalKeyEventSource()
+  let state = ChordCoordinatorFixture.State()
+  let client = MockInputClient()
+  let controller: ChordHandleTestController
+
+  init(enabled: Bool = true, layout: GureumInputSource = .han3Final) {
+    controller = ChordHandleTestController(client: client)
+    state.enabled = enabled
+    let source = source
+    let state = state
+    controller.chordEnvironment = ChordControllerEnvironment(
+      isLab: { true }, isEnabled: { state.enabled }, sourceFactory: { source }, clock: { state.now }
+    )
+    controller.setValue(layout.rawValue, forTag: kTextServiceInputModePropertyTag, client: client)
+  }
+
+  func activate() { controller.activatePhysicalInput(client: client) }
+
+  @discardableResult func down(
+    _ key: KeyCode, text: String, at timestamp: TimeInterval = 0,
+    modifiers: NSEvent.ModifierFlags = []
+  ) -> Bool {
+    let event = NSEvent.keyEvent(
+      with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: timestamp,
+      windowNumber: 0, context: nil, characters: text, charactersIgnoringModifiers: text,
+      isARepeat: false, keyCode: UInt16(key.rawValue))!
+    return controller.handle(event, client: controller.testClient)
+  }
+
+  func release(_ key: KeyCode, at timestamp: TimeInterval = 0.1) {
+    source.emit(.keyUp(keyCode: key.rawValue, timestamp: timestamp))
+  }
+}
+
+class IsolatedChordConfigurationTests: XCTestCase {
+  private let configurationSuite = "org.youknowone.Gureum.test.chord.\(UUID().uuidString)"
+  private var previousConfiguration: Configuration!
+
+  override func setUp() {
+    super.setUp()
+    previousConfiguration = Configuration.shared
+    Configuration.shared = Configuration(suiteName: configurationSuite)!
+  }
+
+  override func tearDown() {
+    Configuration.shared.removePersistentDomain(forName: configurationSuite)
+    Configuration.shared = previousConfiguration
+    previousConfiguration = nil
+    super.tearDown()
+  }
+}
+
+class ChordInputControllerTests: IsolatedChordConfigurationTests {
+  func testEligibleHandleDefersComposerAndClientUntilRelease() {
+    let fixture = ChordHandleFixture()
+    fixture.activate()
+
+    XCTAssertTrue(fixture.down(.ansiK, text: "k"))
+    XCTAssertEqual(fixture.client.string, "")
+    XCTAssertEqual(fixture.controller.receiver.composer.composedString, "")
+
+    fixture.release(.ansiK)
+
+    XCTAssertEqual(fixture.client.string, "ㄱ")
+    XCTAssertEqual(fixture.controller.chordCoordinator?.terminalCount, 1)
+    XCTAssertEqual(fixture.controller.chordCoordinator?.outstandingStrokeCount, 0)
+  }
+
+  func testActivationCapturesReleaseArrivingBeforeFirstImkDown() {
+    let fixture = ChordHandleFixture()
+    fixture.activate()
+    XCTAssertEqual(fixture.source.activeLeaseCount, 1)
+    fixture.release(.ansiK, at: 0.1)
+
+    XCTAssertTrue(fixture.down(.ansiK, text: "k", at: 0.05))
+
+    XCTAssertEqual(fixture.client.string, "ㄱ")
+    XCTAssertEqual(fixture.controller.chordCoordinator?.terminalCount, 1)
+    XCTAssertNil(fixture.controller.chordCoordinator?.disabledReason)
+  }
+
+  func testModeOffHandlesSequentialInputImmediatelyWithoutSourceLease() {
+    let fixture = ChordHandleFixture(enabled: false)
+    fixture.activate()
+
+    XCTAssertTrue(fixture.down(.ansiK, text: "k"))
+
+    XCTAssertEqual(fixture.client.string, "ㄱ")
+    XCTAssertEqual(fixture.source.startCallCount, 0)
+    XCTAssertNil(fixture.controller.chordCoordinator)
+  }
+
+  func testIneligibleLayoutDoesNotAcquireSourceLease() {
+    let fixture = ChordHandleFixture(layout: .han2)
+    fixture.activate()
+
+    XCTAssertTrue(fixture.down(.ansiR, text: "r"))
+
+    XCTAssertEqual(fixture.client.string, "ㄱ")
+    XCTAssertEqual(fixture.source.startCallCount, 0)
+    XCTAssertNil(fixture.controller.chordCoordinator)
+  }
+
+  func testPermissionDeniedUsesBaselineCompositionImmediately() {
+    let fixture = ChordHandleFixture()
+    fixture.source.permissionGranted = false
+    fixture.activate()
+
+    XCTAssertTrue(fixture.down(.ansiK, text: "k"))
+
+    XCTAssertEqual(fixture.client.string, "ㄱ")
+    XCTAssertEqual(fixture.source.activeLeaseCount, 0)
+    XCTAssertEqual(fixture.controller.chordCoordinator?.disabledReason, .permissionLost)
+    XCTAssertEqual(fixture.controller.chordCoordinator?.consumedStrokeCount, 0)
+  }
+
+  func testCommandBoundaryFlushesAndTheNextChordStillDefers() {
+    let fixture = ChordHandleFixture()
+    fixture.activate()
+    fixture.down(.ansiK, text: "k")
+
+    XCTAssertFalse(fixture.down(.ansiA, text: "a", at: 0.01, modifiers: .command))
+    fixture.release(.ansiK, at: 0.02)
+    fixture.release(.ansiA, at: 0.03)
+    XCTAssertEqual(fixture.client.string, "ㄱ")
+    XCTAssertNil(fixture.controller.chordCoordinator?.disabledReason)
+
+    XCTAssertTrue(fixture.down(.ansiF, text: "f", at: 0.04))
+    XCTAssertEqual(fixture.client.string, "ㄱ")
+    fixture.release(.ansiF, at: 0.05)
+    XCTAssertEqual(fixture.client.string, "ㄱㅏ")
+  }
+
+  func testClientRebindingCommitsOnlyToTheOriginalClient() {
+    let fixture = ChordHandleFixture()
+    fixture.activate()
+    fixture.down(.ansiK, text: "k")
+    let nextClient = MockInputClient()
+    fixture.controller.testClient = nextClient
+
+    fixture.controller.setValue(
+      GureumInputSource.han3Final.rawValue, forTag: kTextServiceInputModePropertyTag,
+      client: nextClient)
+
+    XCTAssertEqual(fixture.client.string, "ㄱ")
+    XCTAssertEqual(fixture.client.markedString(), "")
+    XCTAssertEqual(nextClient.string, "")
+    XCTAssertTrue(fixture.down(.ansiF, text: "f", at: 0.2))
+    XCTAssertEqual(nextClient.string, "")
+    fixture.release(.ansiF, at: 0.3)
+    XCTAssertEqual(nextClient.string, "ㅏ")
+    XCTAssertEqual(fixture.client.string, "ㄱ")
+  }
+
+  func testDeactivationReleasesLeaseAndReactivationRestartsIt() {
+    let fixture = ChordHandleFixture()
+    fixture.activate()
+    XCTAssertEqual(fixture.source.activeLeaseCount, 1)
+
+    fixture.controller.deactivatePhysicalInput()
+    XCTAssertEqual(fixture.source.activeLeaseCount, 0)
+    fixture.activate()
+    XCTAssertEqual(fixture.source.activeLeaseCount, 1)
+    XCTAssertEqual(fixture.source.startCallCount, 2)
+  }
+}
+
+class PhysicalStrokeReplayTests: IsolatedChordConfigurationTests {
+  private func finalApp() -> ModerateApp {
+    let app = ModerateApp()
+    app.controller.setValue(
+      GureumInputSource.han3Final.rawValue, forTag: kTextServiceInputModePropertyTag,
+      client: app.client)
+    return app
+  }
+
+  func testPhysicalChordingIsDisabledByDefault() throws {
+    let suite = "org.youknowone.Gureum.test.physical.\(UUID().uuidString)"
+    let configuration = try XCTUnwrap(Configuration(suiteName: suite))
+    defer { configuration.removePersistentDomain(forName: suite) }
+
+    XCTAssertFalse(configuration.physicalChordingEnabled)
+  }
+
+  func testAcceptedReplayUsesTheExistingHangulComposer() {
+    let app = finalApp()
+    app.inputKeys("k")
+    let stroke = ChordStroke(
+      id: 1, keyCode: KeyCode.ansiF.rawValue, text: "f", modifiers: 0, timestamp: 0)
+
+    let outcome = app.controller.replayPhysicalStroke(stroke, client: app.client)
+
+    XCTAssertEqual(outcome, .composerReplay)
+    XCTAssertEqual(app.client.string, "가")
+    XCTAssertEqual(app.client.markedString(), "가")
+    XCTAssertFalse(app.controller.receiver.inputting)
+  }
+
+  func testDeclinedReplayCommitsCompositionBeforeInsertingLiteralExactlyOnce() {
+    let app = finalApp()
+    app.inputKeys("kf")
+    let stroke = ChordStroke(
+      id: 1, keyCode: KeyCode.return.rawValue, text: "\n", modifiers: 0, timestamp: 0)
+
+    let outcome = app.controller.replayPhysicalStroke(stroke, client: app.client)
+
+    XCTAssertEqual(outcome, .literalFallback)
+    XCTAssertEqual(app.client.string, "가\n")
+    XCTAssertEqual(app.client.markedString(), "")
+    XCTAssertFalse(app.controller.receiver.inputting)
+  }
+
+  func testUnknownKeyReplayInsertsLiteralIntoTheSuppliedClient() {
+    let app = finalApp()
+    let owner = MockInputClient()
+    let stroke = ChordStroke(id: 1, keyCode: -1, text: "?", modifiers: 0, timestamp: 0)
+
+    let outcome = app.controller.replayPhysicalStroke(stroke, client: owner)
+
+    XCTAssertEqual(outcome, .literalFallback)
+    XCTAssertEqual(owner.string, "?")
+    XCTAssertEqual(app.client.string, "")
+  }
+}
+
 class Han3FinalNoShiftTests: XCTestCase {
   let app = ModerateApp()
 
