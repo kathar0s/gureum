@@ -1058,7 +1058,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "\"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\"\n";
+			shellScript = "if [ \"${GUREUM_VARIANT:-STANDARD}\" != \"LAB\" ]; then\n  \"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -1235,14 +1235,22 @@
 				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
-				INFOPLIST_FILE = OSX/Info.plist;
+				GUREUM_VARIANT = STANDARD;
+				GUREUM_APP_NAME_STANDARD = Gureum;
+				GUREUM_APP_NAME_LAB = GureumChordLab;
+				GUREUM_APP_ID_STANDARD = org.youknowone.inputmethod.Gureum;
+				GUREUM_APP_ID_LAB = io.github.kathar0s.inputmethod.GureumChordLab;
+				GUREUM_APP_PLIST_STANDARD = OSX/Info.plist;
+				GUREUM_APP_PLIST_LAB = "OSX/GureumChordLab-Info.plist";
+				INFOPLIST_FILE = "$(GUREUM_APP_PLIST_$(GUREUM_VARIANT))";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Input Methods";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = org.youknowone.inputmethod.Gureum;
-				PRODUCT_NAME = Gureum;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(GUREUM_APP_ID_$(GUREUM_VARIANT))";
+				PRODUCT_NAME = "$(GUREUM_APP_NAME_$(GUREUM_VARIANT))";
+				PRODUCT_MODULE_NAME = Gureum;
 				SWIFT_OBJC_BRIDGING_HEADER = OSX/Bridge.h;
 				WRAPPER_EXTENSION = app;
 			};
@@ -1259,14 +1267,22 @@
 				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
-				INFOPLIST_FILE = OSX/Info.plist;
+				GUREUM_VARIANT = STANDARD;
+				GUREUM_APP_NAME_STANDARD = Gureum;
+				GUREUM_APP_NAME_LAB = GureumChordLab;
+				GUREUM_APP_ID_STANDARD = org.youknowone.inputmethod.Gureum;
+				GUREUM_APP_ID_LAB = io.github.kathar0s.inputmethod.GureumChordLab;
+				GUREUM_APP_PLIST_STANDARD = OSX/Info.plist;
+				GUREUM_APP_PLIST_LAB = "OSX/GureumChordLab-Info.plist";
+				INFOPLIST_FILE = "$(GUREUM_APP_PLIST_$(GUREUM_VARIANT))";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Input Methods";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = org.youknowone.inputmethod.Gureum;
-				PRODUCT_NAME = Gureum;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(GUREUM_APP_ID_$(GUREUM_VARIANT))";
+				PRODUCT_NAME = "$(GUREUM_APP_NAME_$(GUREUM_VARIANT))";
+				PRODUCT_MODULE_NAME = Gureum;
 				SWIFT_OBJC_BRIDGING_HEADER = OSX/Bridge.h;
 				WRAPPER_EXTENSION = app;
 			};
