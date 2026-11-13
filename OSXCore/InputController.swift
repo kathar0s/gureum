@@ -52,11 +52,56 @@ enum InputEvent {
   case changeLayout(ChangeLayout, Bool)
 }
 
+struct ChordControllerEnvironment {
+  let isLab: () -> Bool
+  let isEnabled: () -> Bool
+  let sourceFactory: () -> PhysicalKeyEventSourceProtocol
+  let clock: () -> TimeInterval
+  let candidatesVisible: () -> Bool
+  let reportSessionWarning: (String?) -> Void
+
+  init(
+    isLab: @escaping () -> Bool, isEnabled: @escaping () -> Bool,
+    sourceFactory: @escaping () -> PhysicalKeyEventSourceProtocol,
+    clock: @escaping () -> TimeInterval,
+    candidatesVisible: @escaping () -> Bool = { false },
+    reportSessionWarning: @escaping (String?) -> Void = { _ in }
+  ) {
+    self.isLab = isLab
+    self.isEnabled = isEnabled
+    self.sourceFactory = sourceFactory
+    self.clock = clock
+    self.candidatesVisible = candidatesVisible
+    self.reportSessionWarning = reportSessionWarning
+  }
+
+  static var production: Self {
+    Self(
+      isLab: { InputMethodIdentity.current.isChordLab },
+      isEnabled: { Configuration.shared.physicalChordingEnabled },
+      sourceFactory: { PhysicalKeyEventSource.shared },
+      clock: { ProcessInfo.processInfo.systemUptime },
+      candidatesVisible: { InputMethodServer.shared.candidates.isVisible() },
+      reportSessionWarning: { PhysicalKeyEventSource.shared.reportSessionWarning($0) })
+  }
+}
+
 @objc(GureumInputController)
 public class InputController: IMKInputController {
   var receiver: InputReceiver!
   var lastFlags = NSEvent.ModifierFlags(rawValue: 0)
   var updating = false
+  private(set) var chordCoordinator: ChordInputCoordinator?
+  var chordEnvironment = ChordControllerEnvironment.production {
+    willSet {
+      deactivatePhysicalInput(reason: .clientChanged)
+      chordCoordinator = nil
+      chordOwnerClient = nil
+    }
+  }
+  private var chordOwnerClient: (IMKTextInput & IMKUnicodeTextInput)?
+  private var chordReplayClient: (IMKTextInput & IMKUnicodeTextInput)?
+  private var physicalClientIsActive = false
   #if DEBUG
     private lazy var chordLabControllerToken = UUID().uuidString
   #endif
@@ -80,7 +125,27 @@ public class InputController: IMKInputController {
   }
 
   override public func inputControllerWillClose() {
+    deactivatePhysicalInput()
     super.inputControllerWillClose()
+  }
+
+  deinit {
+    if let coordinator = chordCoordinator {
+      if Thread.isMainThread {
+        coordinator.deactivate()
+      } else {
+        DispatchQueue.main.async { coordinator.deactivate() }
+      }
+    }
+  }
+
+  public override func client() -> (IMKTextInput & NSObjectProtocol)! {
+    if let client = chordReplayClient { return client as? (IMKTextInput & NSObjectProtocol) }
+    return super.client()
+  }
+
+  public override func selectionRange() -> NSRange {
+    chordReplayClient?.selectedRange() ?? super.selectionRange()
   }
 
   func asClient(_ sender: Any!) -> IMKTextInput & IMKUnicodeTextInput {
@@ -115,6 +180,186 @@ public class InputController: IMKInputController {
   #endif
 }
 
+extension InputController {
+  private func withChordClient(_ client: IMKTextInput & IMKUnicodeTextInput, _ body: () -> Void) {
+    let previous = chordReplayClient
+    chordReplayClient = client
+    defer { chordReplayClient = previous }
+    body()
+  }
+
+  private var hasPhysicalChordLayout: Bool {
+    receiver?.composer.delegate is HangulComposer && hasSebeolsikInputSource
+  }
+
+  private var hasSebeolsikInputSource: Bool {
+    guard let receiver = receiver else { return false }
+    guard let layout = GureumInputSource(rawValue: receiver.composer.inputMode)
+    else { return false }
+    switch layout {
+    case .han3Final, .han390, .han3NoShift, .han3Classic, .han3Layout2,
+      .han3FinalNoShift, .han32011, .han32012:
+      return true
+    default: return false
+    }
+  }
+
+  private func flushChangedPhysicalClient(_ client: IMKTextInput & IMKUnicodeTextInput) {
+    guard let owner = chordOwnerClient, (owner as AnyObject) !== (client as AnyObject) else {
+      return
+    }
+    chordCoordinator?.endSession(.clientChanged)
+    withChordClient(owner) {
+      receiver.cancelCompositionEvent()
+      receiver.inputting = true
+      receiver.commitCompositionEvent(owner)
+      receiver.inputting = false
+    }
+    receiver.inputClient = client
+    chordCoordinator = nil
+    chordOwnerClient = nil
+  }
+
+  private func prepareChordCoordinator(
+    client: IMKTextInput & IMKUnicodeTextInput, newActivation: Bool = false
+  ) {
+    let environment = chordEnvironment
+    guard physicalClientIsActive, environment.isLab(), environment.isEnabled(),
+      hasPhysicalChordLayout
+    else { return }
+    if let coordinator = chordCoordinator {
+      if newActivation
+        || (!coordinator.isActive && coordinator.disabledReason == nil
+          && coordinator.endedReason == .modeDisabled)
+      {
+        coordinator.activate()
+        environment.reportSessionWarning(nil)
+      }
+      return
+    }
+    let owner = client
+    chordOwnerClient = owner
+    let source = environment.sourceFactory()
+    chordCoordinator = ChordInputCoordinator(
+      source: source, clock: environment.clock,
+      isEnabled: { environment.isLab() && environment.isEnabled() },
+      acceptsRelease: { rawCode in
+        guard let key = KeyCode(rawValue: rawCode) else { return false }
+        return key.isKeyMappable && ![.delete, .return, .tab, .space].contains(key)
+      },
+      onDisabled: { _ in
+        environment.reportSessionWarning("현재 앱에서 안전 중지 · 입력기를 다시 선택하세요.")
+      },
+      replay: { [weak self, owner] stroke in
+        guard let self = self else {
+          owner.insertText(stroke.text, replacementRange: NSRange(location: NSNotFound, length: 0))
+          return .literalFallback
+        }
+        return self.replayPhysicalStroke(stroke, client: owner)
+      })
+    chordCoordinator?.activate()
+    environment.reportSessionWarning(nil)
+  }
+
+  func activatePhysicalInput(client: IMKTextInput & IMKUnicodeTextInput) {
+    physicalClientIsActive = true
+    flushChangedPhysicalClient(client)
+    prepareChordCoordinator(client: client, newActivation: true)
+  }
+
+  func deactivatePhysicalInput(reason: ChordFlushReason = .deactivated) {
+    physicalClientIsActive = false
+    chordCoordinator?.endSession(reason)
+  }
+
+  func flushPhysicalBoundary(_ reason: ChordFlushReason) {
+    chordCoordinator?.flushBoundary(reason)
+  }
+
+  func endPhysicalLayoutSession() {
+    chordCoordinator?.endSession(.layoutChanged)
+    chordCoordinator = nil
+    chordOwnerClient = nil
+  }
+
+  func resumePhysicalLayoutSession(client: IMKTextInput & IMKUnicodeTextInput) {
+    if physicalClientIsActive { prepareChordCoordinator(client: client) }
+  }
+
+  private func consumePhysicalKeyDown(
+    _ event: NSEvent, key: KeyCode, client: IMKTextInput & IMKUnicodeTextInput
+  ) -> Bool {
+    guard physicalClientIsActive, chordEnvironment.isLab(), chordEnvironment.isEnabled()
+    else {
+      chordCoordinator?.endSession(.modeDisabled)
+      return false
+    }
+    guard event.modifierFlags.intersection([.command, .control, .option, .function]).isEmpty else {
+      chordCoordinator?.flushBoundary(
+        .command, ignoringReleaseOf: key.rawValue, timestamp: event.timestamp)
+      return false
+    }
+    guard key.isKeyMappable, ![.delete, .return, .tab, .space].contains(key),
+      let text = event.characters, !text.isEmpty
+    else {
+      chordCoordinator?.flushBoundary(
+        .nonMappable, ignoringReleaseOf: key.rawValue, timestamp: event.timestamp)
+      return false
+    }
+    guard hasPhysicalChordLayout else {
+      if hasSebeolsikInputSource {
+        chordCoordinator?.flushBoundary(
+          .candidate, ignoringReleaseOf: key.rawValue, timestamp: event.timestamp)
+      } else {
+        chordCoordinator?.endSession(.layoutChanged)
+      }
+      return false
+    }
+    guard !chordEnvironment.candidatesVisible() else {
+      chordCoordinator?.flushBoundary(
+        .candidate, ignoringReleaseOf: key.rawValue, timestamp: event.timestamp)
+      return false
+    }
+    guard
+      receiver.composer.filterCommand(keyCode: key, modifiers: event.modifierFlags, client: client)
+        == nil
+    else {
+      chordCoordinator?.flushBoundary(
+        .shortcut, ignoringReleaseOf: key.rawValue, timestamp: event.timestamp)
+      return false
+    }
+
+    prepareChordCoordinator(client: client)
+    return chordCoordinator?.consume(
+      keyCode: key.rawValue, text: text, modifiers: event.modifierFlags.rawValue,
+      timestamp: event.timestamp, isRepeat: event.isARepeat) ?? false
+  }
+
+  func replayPhysicalStroke(
+    _ stroke: ChordStroke, client: IMKTextInput & IMKUnicodeTextInput
+  ) -> ChordTerminalOutcome {
+    var outcome = ChordTerminalOutcome.literalFallback
+    withChordClient(client) {
+      guard let key = KeyCode(rawValue: stroke.keyCode) else {
+        client.insertText(stroke.text, replacementRange: NSRange(location: NSNotFound, length: 0))
+        return
+      }
+      // Eligibility and shortcut classification already happened at the authoritative IMK key-down.
+      // The receiver still performs its normal commit/cancel action before literal fallback.
+      let result = receiver.replayPhysicalStroke(
+        text: stroke.text, key: key, modifiers: NSEvent.ModifierFlags(rawValue: stroke.modifiers),
+        client: client)
+      receiver.inputting = false
+      if result.processed {
+        outcome = .composerReplay
+      } else {
+        client.insertText(stroke.text, replacementRange: NSRange(location: NSNotFound, length: 0))
+      }
+    }
+    return outcome
+  }
+}
+
 // IMKServerInputTextData, IMKServerInputHandleEvent, IMKServerInputKeyBinding 중 하나를 구현하여 입력 구현
 extension InputController {  // IMKServerInputHandleEvent
   // Receiving Events Directly from the Text Services Manager
@@ -123,6 +368,7 @@ extension InputController {  // IMKServerInputHandleEvent
     // dlog(debugInputController, "event: \(event)")
     // sender is (IMKTextInput & IMKUnicodeTextInput & IMTSMSupport)
     let client = asClient(sender)
+    flushChangedPhysicalClient(client)
 
     #if DEBUG
       if InputMethodIdentity.current.isChordLab,
@@ -142,6 +388,7 @@ extension InputController {  // IMKServerInputHandleEvent
     switch event.type {
     case .keyDown:
       guard let keyCode = KeyCode(rawValue: Int(event.keyCode)) else {
+        chordCoordinator?.flushBoundary(.nonMappable)
         return false
       }
 
@@ -153,7 +400,12 @@ extension InputController {  // IMKServerInputHandleEvent
         client.bundleIdentifier() ?? "(no client bundle)")
 
       let imkCandidates = InputMethodServer.shared.candidates
-      if imkCandidates.isVisible() {
+      let candidatesVisible = chordEnvironment.candidatesVisible()
+      if candidatesVisible {
+        chordCoordinator?.flushBoundary(
+          .candidate, ignoringReleaseOf: keyCode.rawValue, timestamp: event.timestamp)
+      }
+      if candidatesVisible {
         let selectionKeys = imkCandidates.selectionKeys() as? [NSNumber] ?? []
         let arrowModifier = NSEvent.ModifierFlags.numericPad.union(.function)
         let emptyModifier = NSEvent.ModifierFlags(rawValue: 0)
@@ -172,6 +424,8 @@ extension InputController {  // IMKServerInputHandleEvent
         }
       }
 
+      if consumePhysicalKeyDown(event, key: keyCode, client: client) { return true }
+
       let result = receiver.input(
         text: event.characters, key: keyCode, modifiers: event.modifierFlags, client: client)
       dlog(debugLogging, "LOGGING::PROCESSED::\(result)")
@@ -182,6 +436,9 @@ extension InputController {  // IMKServerInputHandleEvent
         "** InputController FLAGCHANGED -handleEvent:client: with event: %@ / key: %d / modifier: %lu / client: %@",
         event, -1, event.modifierFlags.rawValue, client.bundleIdentifier() ?? "(no client bundle)")
       let changed = lastFlags.symmetricDifference(event.modifierFlags)
+      if !changed.intersection([.command, .control, .option, .function, .capsLock]).isEmpty {
+        chordCoordinator?.flushBoundary(.command)
+      }
       lastFlags = event.modifierFlags
 
       if changed.contains(.capsLock), Configuration.shared.enableCapslockToToggleInputMode {
@@ -212,6 +469,7 @@ extension InputController {  // IMKServerInputHandleEvent
       return false
     case .leftMouseDown, .leftMouseUp, .leftMouseDragged, .rightMouseDown, .rightMouseUp,
       .rightMouseDragged:
+      chordCoordinator?.flushBoundary(.mouse)
       commitComposition(sender)
     default:
       dlog(debugSpying, "unhandled event: \(event)")
@@ -230,15 +488,26 @@ extension InputController {  // IMKStateSetting
   //! @brief 자판 전환을 감지한다.
   public override func setValue(_ value: Any, forTag tag: Int, client sender: Any) {
     let client = asClient(sender)
+    flushChangedPhysicalClient(client)
+    if tag == kTextServiceInputModePropertyTag,
+      (value as? String) != receiver.composer.inputMode
+    {
+      endPhysicalLayoutSession()
+    }
     receiver.setValue(value, forTag: tag, client: client)
+    if physicalClientIsActive { prepareChordCoordinator(client: client) }
   }
 
   public override func activateServer(_ sender: Any!) {
     dlog(true, "server activated")
     super.activateServer(sender)
+    if let client = sender as? (IMKTextInput & IMKUnicodeTextInput) {
+      activatePhysicalInput(client: client)
+    }
   }
 
   public override func deactivateServer(_ sender: Any!) {
+    deactivatePhysicalInput()
     dlog(true, "server deactivating")
     if responds(to: #selector(commitComposition(_:))) {
       self.commitComposition(sender)
@@ -253,6 +522,7 @@ extension InputController {  // IMKMouseHandling
     onCharacterIndex _: Int, coordinate _: NSPoint, withModifier _: Int,
     continueTracking _: UnsafeMutablePointer<ObjCBool>!, client sender: Any
   ) -> Bool {
+    chordCoordinator?.flushBoundary(.mouse)
     dlog(debugLogging, "LOGGING::EVENT::MOUSEDOWN")
     commitComposition(sender)
     return false
@@ -269,6 +539,7 @@ extension InputController {  // IMKServerInput
   // Committing a Composition
   // 조합을 중단하고 현재까지 조합된 글자를 커밋한다.
   @objc public override func commitComposition(_ sender: Any!) {
+    if chordReplayClient == nil { chordCoordinator?.flushBoundary(.nonMappable) }
     let client = asClient(sender)
     dlog(debugLogging, "LOGGING::EVENT::COMMIT-RAW?")
     _ = receiver.commitCompositionEvent(client)

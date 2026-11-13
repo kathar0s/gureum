@@ -73,6 +73,11 @@ final class PreferenceViewController: NSViewController {
   private var switchBindings: [NSSwitch: NSButton] = [:]
   private var disclosureBodies: [NSButton: NSView] = [:]
   private var sectionPicker: NSSegmentedControl!
+  #if !USE_PREFPANE
+    private var physicalChordSwitch: NSSwitch?
+    private var physicalChordStatus: NSTextField?
+    private var physicalChordPermissionButton: NSButton?
+  #endif
 
   private lazy var inputSources: [(identifier: String, localizedName: String)] = {
     let abcIdentifier = "com.apple.keylayout.ABC"
@@ -192,7 +197,7 @@ final class PreferenceViewController: NSViewController {
     styleMenu(layoutMenu, label: "로마자 키보드 레이아웃")
     styleMenu(rightToggleKeyButton, label: "오른쪽 전환 키")
 
-    let inputPage = page([
+    var inputSections: [NSView] = [
       section(
         "한글 조합",
         rows: [
@@ -214,7 +219,36 @@ final class PreferenceViewController: NSViewController {
           settingRow("Option 키 동작", control: optionControl, controlWidth: 224),
         ]),
       helperText("키보드 레이아웃은 로마자 입력과 한글 입력 중 로마자 단축키에 함께 적용됩니다."),
-    ])
+    ]
+    #if !USE_PREFPANE
+      if InputMethodIdentity.current.isChordLab {
+        let toggle = NSSwitch()
+        toggle.target = self
+        toggle.action = #selector(physicalChordModeChanged(_:))
+        toggle.setAccessibilityLabel("실험용 물리적 키 묶기")
+        physicalChordSwitch = toggle
+        let permission = NSButton(
+          title: "입력 모니터링 허용…", target: self, action: #selector(requestPhysicalChordPermission(_:)))
+        physicalChordPermissionButton = permission
+        inputSections.append(
+          section(
+            "실험 · 물리적 키 묶기",
+            rows: [
+              settingRow("물리적 키 묶기", detail: "활성 Lab 세벌식에서만 모아 누른 순서대로 전달합니다.", control: toggle),
+              settingRow("키 해제 관찰 권한", detail: "버튼을 누를 때만 시스템 권한을 요청합니다.", control: permission),
+            ]))
+        let status = helperText("")
+        physicalChordStatus = status
+        inputSections.append(status)
+        NotificationCenter.default.removeObserver(
+          self, name: PhysicalKeyEventSource.statusDidChange, object: nil)
+        NotificationCenter.default.addObserver(
+          self, selector: #selector(physicalChordSourceChanged(_:)),
+          name: PhysicalKeyEventSource.statusDidChange, object: nil)
+        refreshPhysicalChordControls()
+      }
+    #endif
+    let inputPage = page(inputSections)
 
     let shortcutsPage = page([
       section(
@@ -320,6 +354,41 @@ final class PreferenceViewController: NSViewController {
       pageContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
     ])
   }
+
+  #if !USE_PREFPANE
+    override func viewWillAppear() {
+      super.viewWillAppear()
+      if InputMethodIdentity.current.isChordLab { refreshPhysicalChordControls() }
+    }
+
+    @objc private func physicalChordModeChanged(_ sender: NSSwitch) {
+      configuration.physicalChordingEnabled = sender.state == .on
+      PhysicalKeyEventSource.shared.setEnabled(sender.state == .on)
+      refreshPhysicalChordControls()
+    }
+
+    @objc private func requestPhysicalChordPermission(_: NSButton) {
+      let source = PhysicalKeyEventSource.shared
+      if source.requestPermissionFromUserAction(), configuration.physicalChordingEnabled {
+        source.setEnabled(true)
+      }
+      refreshPhysicalChordControls()
+    }
+
+    @objc private func physicalChordSourceChanged(_: Notification) {
+      refreshPhysicalChordControls()
+    }
+
+    private func refreshPhysicalChordControls() {
+      let source = PhysicalKeyEventSource.shared
+      source.refresh()
+      physicalChordSwitch?.state = isOn(configuration.physicalChordingEnabled)
+      physicalChordPermissionButton?.isEnabled = !source.permissionGranted
+      let permission = source.permissionGranted ? "권한 허용됨" : "권한 미허용"
+      let state = configuration.physicalChordingEnabled ? source.statusText : "물리적 묶기 꺼짐"
+      physicalChordStatus?.stringValue = "\(permission) · \(state) 권한 변경 후 입력기를 다시 선택하세요."
+    }
+  #endif
 
   private func page(_ sections: [NSView]) -> NSScrollView {
     let scroll = NSScrollView()

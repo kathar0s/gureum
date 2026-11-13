@@ -62,6 +62,20 @@ public class InputReceiver: InputTextDelegate {
     modifiers flags: NSEvent.ModifierFlags,
     client sender: IMKTextInput & IMKUnicodeTextInput
   ) -> InputResult {
+    processInput(text: string, key: keyCode, modifiers: flags, client: sender, allowsCommands: true)
+  }
+
+  func replayPhysicalStroke(
+    text: String, key: KeyCode, modifiers: NSEvent.ModifierFlags,
+    client: IMKTextInput & IMKUnicodeTextInput
+  ) -> InputResult {
+    processInput(text: text, key: key, modifiers: modifiers, client: client, allowsCommands: false)
+  }
+
+  private func processInput(
+    text string: String?, key keyCode: KeyCode, modifiers flags: NSEvent.ModifierFlags,
+    client sender: IMKTextInput & IMKUnicodeTextInput, allowsCommands: Bool
+  ) -> InputResult {
     let selected = sender.selectedRange()
     let marked = sender.markedRange()
     if selected.location != marked.location {
@@ -74,7 +88,9 @@ public class InputReceiver: InputTextDelegate {
     }
 
     // 입력기용 특수 커맨드 처리
-    if let command = composer.filterCommand(keyCode: keyCode, modifiers: flags, client: sender) {
+    if allowsCommands,
+      let command = composer.filterCommand(keyCode: keyCode, modifiers: flags, client: sender)
+    {
       let result = input(event: command, client: sender)
       if result.processed {
         return result
@@ -119,9 +135,13 @@ public class InputReceiver: InputTextDelegate {
   func input(event: InputEvent, client sender: IMKTextInput & IMKUnicodeTextInput) -> InputResult {
     switch event {
     case .changeLayout(let layout, let processed):
+      let previousMode = composer.inputMode
+      controller.flushPhysicalBoundary(layout == .search ? .candidate : .shortcut)
       let innerLayout =
         layout == .toggleByCapsLock || layout == .toggleByRightKey ? .toggle : layout
       let result = composer.changeLayout(innerLayout, client: sender)
+      let changedMode = previousMode != composer.inputMode
+      if changedMode { controller.endPhysicalLayoutSession() }
       // 합성 후보가 있다면 보여준다
       InputMethodServer.shared.showOrHideCandidates(controller: controller)
 
@@ -140,6 +160,8 @@ public class InputReceiver: InputTextDelegate {
       }
 
       inputting = false
+
+      if changedMode { controller.resumePhysicalLayoutSession(client: sender) }
 
       return processed ? .processed : .notProcessed
     }
