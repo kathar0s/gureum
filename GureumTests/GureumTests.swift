@@ -509,6 +509,78 @@ class GureumTests: XCTestCase {
     }
   }
 
+  func testSequentialAutoReorderIsDisabledByDefault() {
+    XCTAssertFalse(Configuration.shared.hangulAutoReorder)
+  }
+
+  func testSequentialSebeolsikFinalKeepsVowelBeforeInitialSeparateWhenReorderIsDisabled() {
+    let previousAutoReorder = Configuration.shared.hangulAutoReorder
+    Configuration.shared.hangulAutoReorder = false
+    defer { Configuration.shared.hangulAutoReorder = previousAutoReorder }
+
+    for app in apps {
+      app.controller.setValue(
+        GureumInputSource.han3Final.rawValue, forTag: kTextServiceInputModePropertyTag,
+        client: app.client)
+
+      app.inputKeys("fk")
+
+      XCTAssertEqual("ㅏㄱ", app.client.string)
+      XCTAssertEqual("ㄱ", app.client.markedString())
+    }
+  }
+
+  func testSequentialSebeolsikFinalCombinesInitialBeforeVowelWhenReorderIsDisabled() {
+    let previousAutoReorder = Configuration.shared.hangulAutoReorder
+    Configuration.shared.hangulAutoReorder = false
+    defer { Configuration.shared.hangulAutoReorder = previousAutoReorder }
+
+    for app in apps {
+      app.controller.setValue(
+        GureumInputSource.han3Final.rawValue, forTag: kTextServiceInputModePropertyTag,
+        client: app.client)
+
+      app.inputKeys("kf")
+
+      XCTAssertEqual("가", app.client.string)
+      XCTAssertEqual("가", app.client.markedString())
+    }
+  }
+
+  func testSequentialSebeolsikFinalCombinesVowelBeforeInitialWhenReorderIsEnabled() {
+    let previousAutoReorder = Configuration.shared.hangulAutoReorder
+    Configuration.shared.hangulAutoReorder = true
+    defer { Configuration.shared.hangulAutoReorder = previousAutoReorder }
+
+    for app in apps {
+      app.controller.setValue(
+        GureumInputSource.han3Final.rawValue, forTag: kTextServiceInputModePropertyTag,
+        client: app.client)
+
+      app.inputKeys("fk")
+
+      XCTAssertEqual("가", app.client.string)
+      XCTAssertEqual("가", app.client.markedString())
+    }
+  }
+
+  func testSequentialSebeolsikFinalCombinesInitialBeforeVowelWhenReorderIsEnabled() {
+    let previousAutoReorder = Configuration.shared.hangulAutoReorder
+    Configuration.shared.hangulAutoReorder = true
+    defer { Configuration.shared.hangulAutoReorder = previousAutoReorder }
+
+    for app in apps {
+      app.controller.setValue(
+        GureumInputSource.han3Final.rawValue, forTag: kTextServiceInputModePropertyTag,
+        client: app.client)
+
+      app.inputKeys("kf")
+
+      XCTAssertEqual("가", app.client.string)
+      XCTAssertEqual("가", app.client.markedString())
+    }
+  }
+
   func test3final() {
     for app in apps {
       app.client.string = ""
