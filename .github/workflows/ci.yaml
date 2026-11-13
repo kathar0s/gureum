@@ -37,6 +37,8 @@ jobs:
           -destination 'platform=macOS' test
           -onlyUsePackageVersionsFromResolvedFile
           CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+      - name: Verify isolated Lab defaults initialization
+        run: tools/tests/test_chord_lab_defaults.sh
       #- uses: sersoft-gmbh/xcodebuild-action@v4
       #  with:
       #    workspace: Gureum.xcworkspace

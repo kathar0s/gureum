@@ -67,6 +67,9 @@ Debug Configuration으로 빌드하면 Console.app에서 로그를 확인할 수
 
 기존 구름과 함께 사용할 수 있는 별도 입력기입니다. 앱 이름은 `GureumChordLab.app`이며,
 입력 소스와 설정 영역도 분리되어 있습니다. Firebase 초기화 및 구름 업데이트 확인은 사용하지 않습니다.
+설치 시 Lab의 `HangulAutoReorder` 저장값이 없으면 처음에만 `true`로 설정합니다.
+기존의 명시적인 켜짐·꺼짐과 일반 구름의 설정은 보존하고, 제거 시에도 Lab 설정을 지우지 않습니다.
+이 설정은 libhangul의 순차 입력 자동 순서 교정이며 물리적 동시입력 엔진은 아닙니다.
 
 ```sh
 ./tools/install_chord_lab.sh --build-only
@@ -130,6 +133,17 @@ process == "GureumChordLab" AND subsystem == "io.github.kathar0s.inputmethod.Gur
 VS Code 터미널에서 각각 실제 키를 눌렀다 떼며 `keyDown`/`keyUp` 쌍이 기록되는지 확인합니다.
 합성 이벤트는 이 검증을 대체하지 않습니다. 키 해제가 누락된 앱은 물리적 모아치기 지원 대상으로
 확정하지 않으며, 계측 결과만으로 입력 방식이 변경되지는 않습니다.
+
+### 다른 맥북으로 전달하는 시험 패키지
+
+```sh
+./tools/package_chord_lab.sh
+```
+
+`dist/`에 Apple Silicon·Intel universal 앱, 독립 설치·제거 명령, 한글 안내, 빌드 정보,
+라이선스 고지와 체크섬을 포함한 ZIP을 생성합니다. 대상 맥북에는 Xcode가 필요하지 않습니다.
+현재 묶음은 Developer ID 서명·공증이 없는 Local Debug/ad-hoc 빌드입니다.
+Gatekeeper와 격리 속성을 자동 변경하지 않으므로 ZIP 안의 보안 안내를 확인하세요.
 
 ### 일반 구름 디버그 설치
 
