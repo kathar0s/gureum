@@ -15,39 +15,79 @@ import Foundation
 /// 구름 입력기에서 사용하는 인풋 소스를 정의한 열거형.
 ///
 /// 각 케이스의 원시 값은 그에 대응하는 input method의 번들 식별자를 나타낸다.
-enum GureumInputSource: String {
+enum GureumInputSource: RawRepresentable, CaseIterable {
   /// 로마자 시스템 자판.
-  case system = "org.youknowone.inputmethod.Gureum.system"
+  case system
   /// 로마자 쿼티 자판.
-  case qwerty = "org.youknowone.inputmethod.Gureum.qwerty"
+  case qwerty
   /// 로마자 드보락 자판.
-  case dvorak = "org.youknowone.inputmethod.Gureum.dvorak"
+  case dvorak
   /// 로마자 콜맥 자판.
-  case colemak = "org.youknowone.inputmethod.Gureum.colemak"
+  case colemak
   /// 한글 두벌식 자판.
-  case han2 = "org.youknowone.inputmethod.Gureum.han2"
+  case han2
   /// 한글 두벌식 옛글 자판.
-  case han2Classic = "org.youknowone.inputmethod.Gureum.han2classic"
+  case han2Classic
   /// 한글 세벌식 최종 자판.
-  case han3Final = "org.youknowone.inputmethod.Gureum.han3final"
+  case han3Final
   /// 한글 세벌식 390 자판.
-  case han390 = "org.youknowone.inputmethod.Gureum.han390"
+  case han390
   /// 한글 세벌식 순아래 자판.
-  case han3NoShift = "org.youknowone.inputmethod.Gureum.han3noshift"
+  case han3NoShift
   /// 한글 세벌식 옛글 자판.
-  case han3Classic = "org.youknowone.inputmethod.Gureum.han3classic"
+  case han3Classic
   /// 한글 세벌식 두벌식 배치 자판.
-  case han3Layout2 = "org.youknowone.inputmethod.Gureum.han3layout2"
+  case han3Layout2
   /// 한글 안마태 자판.
-  case hanAhnmatae = "org.youknowone.inputmethod.Gureum.hanahnmatae"
+  case hanAhnmatae
   /// 한글 로마자 자판.
-  case hanRoman = "org.youknowone.inputmethod.Gureum.hanroman"
+  case hanRoman
   /// 한글 세벌식 최종 순아래 자판.
-  case han3FinalNoShift = "org.youknowone.inputmethod.Gureum.han3finalnoshift"
+  case han3FinalNoShift
   /// 한글 세벌식 2011 자판.
-  case han32011 = "org.youknowone.inputmethod.Gureum.han3-2011"
+  case han32011
   /// 한글 세벌식 2012 자판.
-  case han32012 = "org.youknowone.inputmethod.Gureum.han3-2012"
+  case han32012
+
+  init?(rawValue: String) {
+    self.init(rawValue: rawValue, identity: .current)
+  }
+
+  init?(rawValue: String, identity: InputMethodIdentity) {
+    guard let suffix = identity.suffix(for: rawValue),
+      let source = Self.allCases.first(where: { $0.suffix == suffix })
+    else { return nil }
+    self = source
+  }
+
+  var rawValue: String {
+    identifier(for: .current)
+  }
+
+  func identifier(for identity: InputMethodIdentity) -> String {
+    identity.identifier(for: suffix)
+  }
+
+  private var suffix: String {
+    switch self {
+    case .system: return "system"
+    case .qwerty: return "qwerty"
+    case .dvorak: return "dvorak"
+    case .colemak: return "colemak"
+    case .han2: return "han2"
+    case .han2Classic: return "han2classic"
+    case .han3Final: return "han3final"
+    case .han390: return "han390"
+    case .han3NoShift: return "han3noshift"
+    case .han3Classic: return "han3classic"
+    case .han3Layout2: return "han3layout2"
+    case .hanAhnmatae: return "hanahnmatae"
+    case .hanRoman: return "hanroman"
+    case .han3FinalNoShift: return "han3finalnoshift"
+    case .han32011: return "han3-2011"
+    case .han32012: return "han3-2012"
+    }
+  }
 }
 
 // MARK: - GureumComposer 클래스

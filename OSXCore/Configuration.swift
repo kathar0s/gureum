@@ -9,6 +9,35 @@
 import AppKit
 import Foundation
 
+/// 앱 번들이 선택한 입력 소스 및 설정 영역. 일반 구름은 기존 식별자를 유지한다.
+public struct InputMethodIdentity {
+  public let inputSourcePrefix: String
+  public let defaultsSuiteName: String
+  public let isChordLab: Bool
+
+  public static let current = InputMethodIdentity()
+
+  public init(bundle: Bundle = .main) {
+    inputSourcePrefix =
+      bundle.object(forInfoDictionaryKey: "GureumInputSourcePrefix") as? String
+      ?? "org.youknowone.inputmethod.Gureum"
+    defaultsSuiteName =
+      bundle.object(forInfoDictionaryKey: "GureumDefaultsSuiteName") as? String
+      ?? "org.youknowone.Gureum"
+    isChordLab = bundle.object(forInfoDictionaryKey: "GureumChordLab") as? Bool ?? false
+  }
+
+  public func identifier(for suffix: String) -> String {
+    "\(inputSourcePrefix).\(suffix)"
+  }
+
+  public func suffix(for identifier: String) -> String? {
+    let prefix = inputSourcePrefix + "."
+    guard identifier.hasPrefix(prefix) else { return nil }
+    return String(identifier.dropFirst(prefix.count))
+  }
+}
+
 /// 환경 설정 이름을 정의한 열거형.
 enum ConfigurationName {
   /// 마지막 한글 입력 모드.
@@ -59,7 +88,7 @@ public enum UpdateMode {
 
 /// 입력기의 환경 설정을 담당하는 오브젝트.
 public class Configuration: UserDefaults {
-  public static let sharedSuiteName = "org.youknowone.Gureum"
+  public static let sharedSuiteName = InputMethodIdentity.current.defaultsSuiteName
   public static var shared = Configuration()
 
   var enableCapslockToToggleInputMode: Bool = false
@@ -87,8 +116,8 @@ public class Configuration: UserDefaults {
     super.init(suiteName: suiteName)
 
     register(defaults: [
-      ConfigurationName.lastHangulInputMode: "org.youknowone.inputmethod.Gureum.han2",
-      ConfigurationName.lastRomanInputMode: "org.youknowone.inputmethod.Gureum.qwerty",
+      ConfigurationName.lastHangulInputMode: InputMethodIdentity.current.identifier(for: "han2"),
+      ConfigurationName.lastRomanInputMode: InputMethodIdentity.current.identifier(for: "qwerty"),
 
       ConfigurationName.inputModeSearchKey: Configuration.convertShortcutToConfiguration(
         (.return, .option)),
