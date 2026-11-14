@@ -1131,6 +1131,11 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
     XCTAssertEqual(navigation.selectedIndex, 0)
   }
 
+  func testAdvancedPageFitsWithoutReachingTheScrollHeightCap() throws {
+    let (_, child) = try form()
+    XCTAssertLessThan(child.preferredContentHeight(for: 2), 680)
+  }
+
   func testGroupsUsePrimaryBoxesAndMiniSwitches() throws {
     let (_, child) = try form()
     let views = descendants(child.view)

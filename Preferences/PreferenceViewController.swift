@@ -618,29 +618,23 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
       }
     #endif
     let identity = InputMethodIdentity.current
-    var updateRows = [
-      settingRow(
-        "업데이트 알림", control: settingSwitch(updateNotificationButton, label: "업데이트 알림"))
-    ]
-    if identity.supportsExperimentalUpdates {
-      updateRows.append(
+    if identity.supportsUpdates {
+      var updateRows = [
         settingRow(
-          "실험 버전 알림",
-          control: settingSwitch(updateNotificationExperimentalButton, label: "실험 버전 알림")))
+          "업데이트 알림", control: settingSwitch(updateNotificationButton, label: "업데이트 알림"))
+      ]
+      if identity.supportsExperimentalUpdates {
+        updateRows.append(
+          settingRow(
+            "실험 버전 알림",
+            control: settingSwitch(updateNotificationExperimentalButton, label: "실험 버전 알림")))
+      }
+      let updateExplanation =
+        identity.isBaram
+        ? helperText("baram.sionyuel.com에서 바람 입력기의 새 정식 버전을 확인합니다.") : nil
+      advancedSections.append(
+        section("업데이트", rows: updateRows, explanation: updateExplanation))
     }
-    let updateExplanation: NSTextField? = {
-      if identity.isBaram {
-        return identity.supportsUpdates
-          ? helperText("baram.sionyuel.com에서 바람 입력기의 새 정식 버전을 확인합니다.")
-          : helperText("정식 배포 전에는 바람 업데이트 확인을 사용하지 않습니다.")
-      }
-      if !identity.supportsUpdates {
-        return helperText("이 제품에는 별도 업데이트 채널이 없습니다.")
-      }
-      return nil
-    }()
-    advancedSections.append(
-      section("업데이트", rows: updateRows, explanation: updateExplanation))
     let advancedPage = page(advancedSections)
     preferencePages = [inputPage, shortcutsPage, advancedPage]
     let pageContainer = NSView()
