@@ -8,8 +8,10 @@
 
 import Hangul
 import InputMethodKit
+import MASShortcut
 import XCTest
 
+@testable import Gureum
 @testable import GureumCore
 
 private var lastNotification: NSUserNotification!
@@ -63,7 +65,9 @@ class GureumTests: XCTestCase {
     let window = try XCTUnwrap(controller.window)
     defer { window.close() }
 
-    XCTAssertEqual(window.contentMinSize, NSSize(width: 600, height: 560))
+    XCTAssertEqual(window.contentMinSize, NSSize(width: 500, height: 340))
+    XCTAssertEqual(window.contentMaxSize.width, 500)
+    XCTAssertTrue(window.autorecalculatesKeyViewLoop)
     let host = try XCTUnwrap(window.contentViewController)
     _ = host.view
     XCTAssertEqual(host.children.count, 1)
@@ -936,6 +940,350 @@ class GureumTests: XCTestCase {
   //    }
 }
 
+class PreferencesFormTests: IsolatedChordConfigurationTests {
+  private func form() throws -> (NSWindow, NSViewController) {
+    let storyboard = NSStoryboard(name: "Configuration", bundle: .main)
+    let controller = try XCTUnwrap(storyboard.instantiateInitialController() as? NSWindowController)
+    let window = try XCTUnwrap(controller.window)
+    let host = try XCTUnwrap(window.contentViewController)
+    _ = host.view
+    let child = try XCTUnwrap(host.children.first)
+    host.view.layoutSubtreeIfNeeded()
+    child.viewDidAppear()
+    addTeardownBlock {
+      window.close()
+      _ = controller
+    }
+    return (window, child)
+  }
+
+  private func descendants(_ view: NSView) -> [NSView] {
+    [view] + view.subviews.flatMap { descendants($0) }
+  }
+
+  private func select(_ index: Int, in view: NSView) throws -> NSSegmentedControl {
+    let picker = try XCTUnwrap(descendants(view).compactMap { $0 as? NSSegmentedControl }.first)
+    picker.selectedSegment = index
+    XCTAssertTrue(NSApp.sendAction(try XCTUnwrap(picker.action), to: picker.target, from: picker))
+    return picker
+  }
+
+  func testHostUsesCompactFixedWidthAndRetainsThePreferenceController() throws {
+    let (window, child) = try form()
+
+    XCTAssertEqual(window.contentLayoutRect.size, NSSize(width: 500, height: 440))
+    XCTAssertEqual(window.contentMinSize, NSSize(width: 500, height: 340))
+    XCTAssertEqual(window.contentMaxSize.width, 500)
+    XCTAssertTrue(window.autorecalculatesKeyViewLoop)
+    XCTAssertNotNil(child.parent)
+  }
+
+  func testGroupsUsePrimaryBoxesAndMiniSwitches() throws {
+    let (_, child) = try form()
+    let views = descendants(child.view)
+    let boxes = views.compactMap { $0 as? NSBox }.filter { $0.boxType != .separator }
+    let switches = views.compactMap { $0 as? NSSwitch }
+
+    XCTAssertFalse(boxes.isEmpty)
+    XCTAssertFalse(switches.isEmpty)
+    XCTAssertTrue(boxes.allSatisfy { $0.boxType == .primary })
+    XCTAssertTrue(switches.allSatisfy { $0.controlSize == .mini })
+  }
+
+  func testRowsAreVerticallyCenteredWithMinimumHeightAndInsetSeparators() throws {
+    let (_, child) = try form()
+    let views = descendants(child.view)
+    let rows = views.filter { view in
+      view.constraints.contains {
+        ($0.firstItem as? NSView) === view && $0.firstAttribute == .height
+          && $0.relation == .greaterThanOrEqual && $0.constant == 36
+      }
+    }
+    XCTAssertFalse(rows.isEmpty)
+    for row in rows {
+      XCTAssertEqual(row.constraints.filter { $0.firstAttribute == .centerY }.count, 2)
+    }
+    let separators = views.compactMap { $0 as? NSBox }.filter { $0.boxType == .separator }
+    XCTAssertFalse(separators.isEmpty)
+    for separator in separators {
+      let inset = try XCTUnwrap(separator.superview)
+      XCTAssertTrue(inset.constraints.contains { $0.firstAttribute == .height && $0.constant == 1 })
+      XCTAssertTrue(
+        inset.constraints.contains { $0.firstAttribute == .leading && $0.constant == 10 })
+      XCTAssertTrue(
+        inset.constraints.contains { $0.firstAttribute == .trailing && $0.constant == -10 })
+    }
+  }
+
+  func testNavigationAndPopupsRetainNativeRegularControlSizes() throws {
+    let (_, child) = try form()
+    let views = descendants(child.view)
+    let picker = try XCTUnwrap(views.compactMap { $0 as? NSSegmentedControl }.first)
+    XCTAssertEqual(picker.controlSize, .regular)
+    let popups = views.compactMap { $0 as? NSPopUpButton }
+    XCTAssertEqual(popups.count, 3)
+    XCTAssertTrue(popups.allSatisfy { $0.controlSize == .regular })
+    let option = try XCTUnwrap(popups.first { $0.accessibilityLabel() == "Option 키 동작" })
+    XCTAssertFalse(option.pullsDown)
+    XCTAssertFalse(option.isBordered)
+    for popup in popups {
+      XCTAssertFalse(
+        popup.constraints.contains {
+          ($0.firstItem as? NSView) === popup
+            && ObjectIdentifier(type(of: $0)) == ObjectIdentifier(NSLayoutConstraint.self)
+            && $0.firstAttribute == .height && $0.relation == .equal
+        }, "\(popup.constraints)")
+      XCTAssertTrue(
+        popup.constraints.contains {
+          $0.firstAttribute == .width && $0.relation == .lessThanOrEqual && $0.constant == 220
+        })
+    }
+  }
+
+  func testEveryPageKeyLoopContainsOnlyItsVisibleControlsInReadingOrder() throws {
+    let (window, child) = try form()
+    var labels = [
+      ["모아치기", "세벌식 정석 조합", "` 키로 원화 기호 입력", "키보드 레이아웃", "Option 키 동작"],
+      ["한글 ↔ 로마자", "한자 및 이모지", "로마자로 전환", "한글로 전환", "오른쪽 전환 키", "입력 모니터링 열기", "키보드 열기"],
+      ["두벌식 종성 결합", "조합 상태 유지", "Esc로 로마자 전환", "업데이트 알림", "실험 버전 알림"],
+    ]
+    #if DEBUG
+      labels[2].append("오류 처리 검증을 위해 앱 종료")
+    #endif
+    for index in 0..<3 {
+      let picker = try select(index, in: child.view)
+      XCTAssertTrue(window.initialFirstResponder === picker)
+      var visited: [NSView] = []
+      var next = picker.nextKeyView
+      while let control = next, control !== picker, visited.count < 32 {
+        XCTAssertFalse(control.isHiddenOrHasHiddenAncestor)
+        visited.append(control)
+        next = control.nextKeyView
+      }
+      XCTAssertTrue(next === picker)
+      let readingOrder = visited.compactMap { control -> String? in
+        if control is MASShortcutView {
+          return control.superview?.subviews.compactMap { $0 as? NSTextField }.first?.stringValue
+        }
+        return control.accessibilityLabel()
+      }
+      XCTAssertEqual(readingOrder, labels[index])
+      XCTAssertEqual(Set(visited.map(ObjectIdentifier.init)).count, visited.count)
+    }
+  }
+
+  func testPermissionAndSystemShortcutRowsAreVisibleWithoutDisclosures() throws {
+    let (_, child) = try form()
+    _ = try select(1, in: child.view)
+    let views = descendants(child.view)
+    let buttons = views.compactMap { $0 as? NSButton }
+    XCTAssertFalse(buttons.contains { $0.bezelStyle == .disclosure })
+    for label in ["입력 모니터링 열기", "키보드 열기"] {
+      let button = try XCTUnwrap(buttons.first { $0.accessibilityLabel() == label })
+      XCTAssertFalse(button.isHiddenOrHasHiddenAncestor)
+      XCTAssertEqual(button.controlSize, .regular)
+      XCTAssertEqual(button.title, "열기…")
+    }
+    let labels = views.compactMap { $0 as? NSTextField }.filter { !$0.isHiddenOrHasHiddenAncestor }
+      .map(\.stringValue)
+    XCTAssertTrue(labels.contains("오른쪽 키 전환"))
+    XCTAssertTrue(labels.contains("시스템 단축키"))
+  }
+
+  func testSequentialReorderingCopyDoesNotClaimPhysicalChordCapture() throws {
+    let (_, child) = try form()
+    let labels = descendants(child.view).compactMap { $0 as? NSTextField }.map(\.stringValue)
+
+    XCTAssertTrue(labels.contains("모아치기는 순서가 바뀐 낱자를 자동으로 조합합니다."))
+    if !InputMethodIdentity.current.isChordLab {
+      XCTAssertFalse(labels.contains("실험 · 물리적 키 묶기"))
+    }
+  }
+
+  func testDebugDeveloperGroupIsPlainAndHasNoDisclosure() throws {
+    let (_, child) = try form()
+    _ = try select(2, in: child.view)
+    let views = descendants(child.view).filter { !$0.isHiddenOrHasHiddenAncestor }
+    #if DEBUG
+      XCTAssertTrue(views.compactMap { $0 as? NSTextField }.contains { $0.stringValue == "개발자" })
+      let button = try XCTUnwrap(views.compactMap { $0 as? NSButton }.first { $0.title == "종료…" })
+      XCTAssertNotEqual(button.bezelStyle, .disclosure)
+    #endif
+  }
+
+  func testShortcutLocalizationIsLimitedToThePreferenceRecorderSubclass() throws {
+    let (_, child) = try form()
+    let recorder = try XCTUnwrap(
+      descendants(child.view).compactMap { $0 as? MASShortcutView }.first)
+    let localCell = try XCTUnwrap(type(of: recorder).shortcutCellClass() as? NSButtonCell.Type)
+    XCTAssertNotEqual(
+      ObjectIdentifier(localCell), ObjectIdentifier(MASShortcutView.shortcutCellClass()))
+    XCTAssertEqual(localCell.init(textCell: "Record Shortcut").title, "단축키 입력")
+    XCTAssertEqual(MASShortcutViewButtonCell(textCell: "Record Shortcut").title, "Record Shortcut")
+  }
+}
+
+class GureumMenuTests: XCTestCase {
+  private func capabilities(
+    lab: Bool = false, displayName: String? = nil, bundleName: String? = "Fixture Input Method"
+  ) throws -> GureumMenuCapabilities {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString).appendingPathExtension("bundle")
+    let contents = directory.appendingPathComponent("Contents", isDirectory: true)
+    try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+    addTeardownBlock { try FileManager.default.removeItem(at: directory) }
+    var info: [String: Any] = ["GureumChordLab": lab]
+    info["CFBundleDisplayName"] = displayName
+    info["CFBundleName"] = bundleName
+    let data = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+    try data.write(to: contents.appendingPathComponent("Info.plist"))
+    let bundle = try XCTUnwrap(Bundle(url: directory))
+    return GureumMenuCapabilities.current(
+      bundle: bundle, identity: InputMethodIdentity(bundle: bundle))
+  }
+
+  private func identifiers(_ menu: NSMenu) -> [String] {
+    menu.items.map { $0.isSeparatorItem ? "separator" : ($0.identifier?.rawValue ?? "missing") }
+  }
+
+  private func item(_ menu: NSMenu, identifier: String) -> NSMenuItem? {
+    menu.items.first { $0.identifier?.rawValue == identifier }
+  }
+
+  private func descendants(_ menu: NSMenu) -> [NSMenuItem] {
+    menu.items.flatMap { item in
+      [item] + (item.submenu.map { descendants($0) } ?? [])
+    }
+  }
+
+  func testUpstreamCapabilitiesPreserveExistingDestinationsAndUpdates() throws {
+    let capabilities = try capabilities()
+
+    XCTAssertEqual(capabilities.websiteURL?.absoluteString, "http://gureum.io")
+    XCTAssertEqual(capabilities.helpURL?.absoluteString, "http://dan.gureum.io")
+    XCTAssertEqual(capabilities.issuesURL?.absoluteString, "http://meok.gureum.io")
+    XCTAssertEqual(capabilities.sourceURL?.absoluteString, "http://ssi.gureum.io")
+    XCTAssertEqual(capabilities.donationURL?.absoluteString, "http://donation.gureum.io")
+    XCTAssertTrue(capabilities.supportsUpdates)
+  }
+
+  func testLabCapabilitiesExposeOnlyForkIssuesAndSource() throws {
+    let capabilities = try capabilities(lab: true)
+
+    XCTAssertNil(capabilities.websiteURL)
+    XCTAssertNil(capabilities.helpURL)
+    XCTAssertNil(capabilities.donationURL)
+    XCTAssertEqual(
+      capabilities.issuesURL?.absoluteString, "https://github.com/kathar0s/gureum/issues")
+    XCTAssertEqual(capabilities.sourceURL?.absoluteString, "https://github.com/kathar0s/gureum")
+    XCTAssertFalse(capabilities.supportsUpdates)
+  }
+
+  func testUpstreamMenuHasCompactTopLevelOrderAndGroupedSupportItems() throws {
+    let menu = GureumMenuBuilder(capabilities: try capabilities(), includeDeveloperTools: false)
+      .makeMenu()
+
+    XCTAssertEqual(
+      identifiers(menu), ["preferences", "update", "separator", "support", "separator", "about"])
+    let support = try XCTUnwrap(
+      item(menu, identifier: "support")?.submenu)
+    XCTAssertEqual(identifiers(support), ["website", "help", "issues", "source", "donation"])
+  }
+
+  func testLabMenuHidesUpstreamOnlyServicesAndUpdates() throws {
+    let menu = GureumMenuBuilder(
+      capabilities: try capabilities(lab: true), includeDeveloperTools: true
+    )
+    .makeMenu()
+
+    XCTAssertEqual(
+      identifiers(menu), ["preferences", "separator", "support", "separator", "about"])
+    let support = try XCTUnwrap(
+      item(menu, identifier: "support")?.submenu)
+    XCTAssertEqual(identifiers(support), ["issues", "source"])
+    let allIDs = descendants(menu).compactMap { $0.identifier?.rawValue }
+    XCTAssertTrue(
+      Set(allIDs).isDisjoint(with: [
+        "website", "help", "donation", "update", "developer", "experimental-update",
+      ]))
+  }
+
+  func testDeveloperAndExperimentalUpdateAppearOnlyWhenRequestedForUpstream() throws {
+    let capabilities = try capabilities()
+    let publicMenu = GureumMenuBuilder(capabilities: capabilities, includeDeveloperTools: false)
+      .makeMenu()
+    let developerMenu = GureumMenuBuilder(capabilities: capabilities, includeDeveloperTools: true)
+      .makeMenu()
+
+    XCTAssertFalse(descendants(publicMenu).contains { $0.identifier?.rawValue == "developer" })
+    let support = try XCTUnwrap(
+      item(developerMenu, identifier: "support")?.submenu)
+    XCTAssertEqual(
+      identifiers(support),
+      ["website", "help", "issues", "source", "donation", "separator", "developer"])
+    let developer = try XCTUnwrap(
+      item(support, identifier: "developer")?.submenu)
+    XCTAssertEqual(identifiers(developer), ["experimental-update"])
+  }
+
+  func testMenuActionsUseFirstResponderTargetsAndExpectedSelectors() throws {
+    let menu = GureumMenuBuilder(capabilities: try capabilities(), includeDeveloperTools: true)
+      .makeMenu()
+    let expected: [String: String] = [
+      "preferences": "showPreferencesWindow:", "update": "checkRecentVersion:",
+      "website": "openWebsite:", "help": "openWebsiteHelp:", "issues": "openWebsiteIssues:",
+      "source": "openWebsiteSource:", "donation": "openWebsiteDonation:",
+      "experimental-update": "checkExperimentalVersion:", "about": "showStandardAboutPanel:",
+    ]
+    for item in descendants(menu) where !item.isSeparatorItem && item.submenu == nil {
+      let identifier = try XCTUnwrap(item.identifier?.rawValue)
+      XCTAssertNil(item.target, identifier)
+      XCTAssertEqual(item.action.map(NSStringFromSelector), expected[identifier], identifier)
+      XCTAssertEqual(item.keyEquivalent, "")
+    }
+  }
+
+  func testMenuTitlesAndIdentifiersAreNonemptyTrimmedAndUnique() throws {
+    for lab in [false, true] {
+      let menu = GureumMenuBuilder(
+        capabilities: try capabilities(lab: lab), includeDeveloperTools: true
+      )
+      .makeMenu()
+      var allIdentifiers: [String] = []
+      for item in descendants(menu) where !item.isSeparatorItem {
+        XCTAssertFalse(item.title.isEmpty)
+        XCTAssertEqual(item.title, item.title.trimmingCharacters(in: .whitespacesAndNewlines))
+        let identifier = try XCTUnwrap(item.identifier?.rawValue)
+        XCTAssertFalse(identifier.isEmpty)
+        allIdentifiers.append(identifier)
+        if let submenu = item.submenu { XCTAssertEqual(submenu.title, item.title) }
+      }
+      XCTAssertEqual(Set(allIdentifiers).count, allIdentifiers.count)
+    }
+  }
+
+  func testDisplayNameAndAboutTitlePreferBundleDisplayName() throws {
+    let capabilities = try capabilities(displayName: "Custom Chord Lab", bundleName: "Fallback")
+    let menu = GureumMenuBuilder(capabilities: capabilities, includeDeveloperTools: false)
+      .makeMenu()
+
+    XCTAssertEqual(capabilities.displayName, "Custom Chord Lab")
+    XCTAssertEqual(menu.title, "Custom Chord Lab")
+    XCTAssertEqual(
+      item(menu, identifier: "about")?.title,
+      "Custom Chord Lab에 관하여")
+  }
+
+  func testBlankDisplayNameFallsBackToBundleName() throws {
+    XCTAssertEqual(
+      try capabilities(displayName: "  \n", bundleName: "Fallback").displayName, "Fallback")
+  }
+
+  func testMissingBundleNamesUseTheUpstreamDisplayNameFallback() throws {
+    XCTAssertEqual(try capabilities(bundleName: nil).displayName, "구름 입력기")
+  }
+}
+
 class InputMethodIdentityTests: XCTestCase {
   private let sourceSuffixes: [(GureumInputSource, String)] = [
     (.system, "system"), (.qwerty, "qwerty"), (.dvorak, "dvorak"), (.colemak, "colemak"),
@@ -1130,7 +1478,8 @@ private final class ChordCoordinatorFixture {
 
   init(
     enabled: Bool = true, watchdog: TimeInterval = 2, maxOrphans: Int = 32, maxStrokes: Int = 64,
-    acceptsRelease: @escaping (Int) -> Bool = { _ in true }
+    acceptsRelease: @escaping (Int) -> Bool = { _ in true },
+    orderGroup: @escaping (StrokeGroup) -> [ChordStroke] = { $0.strokes }
   ) {
     let state = state
     state.enabled = enabled
@@ -1138,6 +1487,7 @@ private final class ChordCoordinatorFixture {
       source: source, clock: { state.now }, isEnabled: { state.enabled },
       acceptsRelease: acceptsRelease, watchdog: watchdog,
       orphanLifetime: 0.25, maxOrphans: maxOrphans, maxStrokes: maxStrokes,
+      orderGroup: orderGroup,
       onDisabled: { state.disabled.append($0) },
       replay: {
         state.replayed.append($0)
@@ -1160,6 +1510,69 @@ private final class ChordCoordinatorFixture {
 }
 
 class ChordInputCoordinatorTests: XCTestCase {
+  func testValidPolicyPermutationChangesOnlyReleaseCompletedReplayOrder() {
+    let fixture = ChordCoordinatorFixture(orderGroup: { Array($0.strokes.reversed()) })
+    fixture.press(1)
+    fixture.press(2, at: 0.01)
+    fixture.release(1, at: 0.02)
+    fixture.release(2, at: 0.03)
+
+    XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [2, 1])
+    XCTAssertEqual(fixture.coordinator.terminalCount, 2)
+  }
+
+  func testInvalidPolicyIdsAndPayloadsFallBackToOriginalOrder() {
+    let invalidPolicies: [(StrokeGroup) -> [ChordStroke]] = [
+      { _ in [] },
+      { [$0.strokes[0], $0.strokes[0]] },
+      {
+        let stroke = $0.strokes[0]
+        return [
+          ChordStroke(
+            id: 999, keyCode: stroke.keyCode, text: stroke.text, modifiers: stroke.modifiers,
+            timestamp: stroke.timestamp), $0.strokes[1],
+        ]
+      },
+      {
+        let stroke = $0.strokes[0]
+        return [
+          ChordStroke(
+            id: stroke.id, keyCode: stroke.keyCode, text: "changed", modifiers: stroke.modifiers,
+            timestamp: stroke.timestamp), $0.strokes[1],
+        ]
+      },
+    ]
+    for policy in invalidPolicies {
+      let fixture = ChordCoordinatorFixture(orderGroup: policy)
+      fixture.press(1)
+      fixture.press(2, at: 0.01)
+      fixture.release(1, at: 0.02)
+      fixture.release(2, at: 0.03)
+      XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1, 2])
+      XCTAssertEqual(fixture.state.replayed.map(\.text), ["key1", "key2"])
+      XCTAssertEqual(fixture.coordinator.terminalCount, fixture.coordinator.consumedStrokeCount)
+    }
+  }
+
+  func testSafetyAndBoundaryFlushesNeverInvokeTheOrderingPolicy() {
+    for safetyFault in [false, true] {
+      var policyCalls = 0
+      let fixture = ChordCoordinatorFixture(orderGroup: {
+        policyCalls += 1
+        return Array($0.strokes.reversed())
+      })
+      fixture.press(1)
+      fixture.press(2, at: 0.01)
+      if safetyFault {
+        fixture.coordinator.checkTimeout(now: 2)
+      } else {
+        fixture.coordinator.flushBoundary(.command)
+      }
+      XCTAssertEqual(policyCalls, 0)
+      XCTAssertEqual(fixture.state.replayed.map(\.keyCode), [1, 2])
+    }
+  }
+
   func testLeaseStopsOnLastDeactivationAndRestartsOnActivation() {
     let fixture = ChordCoordinatorFixture()
     XCTAssertEqual(fixture.source.activeLeaseCount, 1)
@@ -1765,6 +2178,25 @@ class IsolatedChordConfigurationTests: XCTestCase {
 }
 
 class ChordInputControllerTests: IsolatedChordConfigurationTests {
+  func testReleasedPhysicalChordUsesLayoutOrderingBeforeTheRealComposer() {
+    let fixture = ChordHandleFixture()
+    fixture.activate()
+    XCTAssertFalse(Configuration.shared.hangulAutoReorder)
+    XCTAssertTrue(fixture.down(.ansiS, text: "s"))
+    XCTAssertTrue(fixture.down(.ansiF, text: "f", at: 0.01))
+    XCTAssertTrue(fixture.down(.ansiJ, text: "j", at: 0.02))
+    XCTAssertEqual(fixture.client.string, "")
+    fixture.release(.ansiJ, at: 0.03)
+    fixture.release(.ansiS, at: 0.04)
+    XCTAssertEqual(fixture.client.string, "")
+
+    fixture.release(.ansiF, at: 0.05)
+
+    XCTAssertEqual(fixture.client.string, "안")
+    XCTAssertEqual(fixture.controller.chordCoordinator?.terminalCount, 3)
+    XCTAssertEqual(fixture.controller.chordCoordinator?.outstandingStrokeCount, 0)
+  }
+
   func testEligibleHandleDefersComposerAndClientUntilRelease() {
     let fixture = ChordHandleFixture()
     fixture.activate()
@@ -1876,6 +2308,274 @@ class ChordInputControllerTests: IsolatedChordConfigurationTests {
     fixture.activate()
     XCTAssertEqual(fixture.source.activeLeaseCount, 1)
     XCTAssertEqual(fixture.source.startCallCount, 2)
+  }
+}
+
+private final class StubChordMappingProvider: ChordLayoutMappingProviding {
+  var mappings: [String: ChordLayoutMapping]
+  private(set) var requested: [String] = []
+
+  init(_ mappings: [String: ChordLayoutMapping] = [:]) { self.mappings = mappings }
+  func mapping(for identifier: String) -> ChordLayoutMapping? {
+    requested.append(identifier)
+    return mappings[identifier]
+  }
+}
+
+class ChordEmissionPolicyTests: IsolatedChordConfigurationTests {
+  private func group(_ characters: String, reason: ChordFlushReason = .allReleased) -> StrokeGroup {
+    let strokes = characters.enumerated().map { index, character -> ChordStroke in
+      let (key, modifiers) = keyMapReversed[String(character)]!
+      return ChordStroke(
+        id: UInt64(index + 1), keyCode: key.rawValue, text: String(character),
+        modifiers: modifiers.rawValue, timestamp: Double(index) * 0.01)
+    }
+    return StrokeGroup(strokes: strokes, reason: reason, completedAt: 0.1)
+  }
+
+  private func directory() throws -> URL {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    addTeardownBlock { try FileManager.default.removeItem(at: url) }
+    return url
+  }
+
+  private func write(_ xml: String, id: String = "fixture", directory: URL) throws {
+    try Data(xml.utf8).write(
+      to: directory.appendingPathComponent("hangul-keyboard-\(id).xml"))
+  }
+
+  private func xml(_ items: String, id: String = "fixture", type: String = "jaso") -> String {
+    "<hangul-keyboard id=\"\(id)\" type=\"\(type)\"><map id=\"0\">\(items)</map></hangul-keyboard>"
+  }
+
+  private func stubPolicy(
+    id: String = "fixture", type: String = "jaso", values: [UInt32: UInt32]
+  ) -> ChordEmissionPolicy {
+    ChordEmissionPolicy(
+      mappingProvider: StubChordMappingProvider([
+        id: ChordLayoutMapping(identifier: id, keyboardType: type, asciiToScalar: values)
+      ]))
+  }
+
+  func testBundledXmlContainsAllSupportedSebeolsikMappings() throws {
+    let repository = ChordLayoutMappingRepository()
+    for id in ["3f", "39", "3fs", "39s", "3-2011", "3-2012", "3s", "3y", "3gs", "3gc"] {
+      let mapping = try XCTUnwrap(repository.mapping(for: id), id)
+      XCTAssertEqual(mapping.identifier, id)
+      XCTAssertEqual(mapping.asciiToScalar[0x66], 0x1161, id)
+      XCTAssertEqual(mapping.asciiToScalar[0x6A], 0x110B, id)
+      XCTAssertEqual(mapping.asciiToScalar[0x73], 0x11AB, id)
+    }
+  }
+
+  func testEveryFjsPermutationAcrossSupportedLayoutsComposesAnWithReorderOff() {
+    Configuration.shared.hangulAutoReorder = false
+    let policy = ChordEmissionPolicy()
+    for id in ["3f", "39", "3fs", "39s", "3-2011", "3-2012", "3s", "3y"] {
+      for permutation in ["fjs", "fsj", "jfs", "jsf", "sfj", "sjf"] {
+        let ordered = policy.order(group: group(permutation), keyboardIdentifier: id)
+        XCTAssertEqual(ordered.map(\.text).joined(), "jfs", "\(id): \(permutation)")
+        let app = ModerateApp()
+        app.controller.setValue(
+          GureumInputSource.han3Final.rawValue, forTag: kTextServiceInputModePropertyTag,
+          client: app.client)
+        app.controller.receiver.composer.hangulComposer.setKeyboard(identifier: id)
+        for stroke in ordered {
+          app.inputKey(
+            KeyCode(rawValue: stroke.keyCode)!,
+            modifiers: NSEvent.ModifierFlags(rawValue: stroke.modifiers))
+        }
+        XCTAssertEqual(app.client.string, "안", "\(id): \(permutation)")
+      }
+    }
+  }
+
+  func testOrderingPreservesOriginalOrderWithinEveryHangulRole() {
+    let policy = stubPolicy(values: [
+      0x6A: 0x110B, 0x6B: 0x1100, 0x66: 0x1161, 0x64: 0x1175, 0x73: 0x11AB, 0x78: 0x11A8,
+    ])
+    XCTAssertEqual(
+      policy.order(group: group("sfdjkx"), keyboardIdentifier: "fixture").map(\.text).joined(),
+      "jkfdsx")
+  }
+
+  func testStrictSelectionUsesTheSharedEffectiveIdentifierRule() {
+    XCTAssertEqual(effectiveHangulKeyboardIdentifier("3f", strictCombinationRule: true), "3fs")
+    XCTAssertEqual(effectiveHangulKeyboardIdentifier("39", strictCombinationRule: true), "39s")
+    XCTAssertEqual(effectiveHangulKeyboardIdentifier("3f", strictCombinationRule: false), "3f")
+    XCTAssertEqual(effectiveHangulKeyboardIdentifier("3gs", strictCombinationRule: true), "3gs")
+    let provider = StubChordMappingProvider()
+    let policy = ChordEmissionPolicy(mappingProvider: provider, strictCombinationRule: true)
+    _ = policy.order(group: group("fjs"), keyboardIdentifier: "3f")
+    _ = policy.order(group: group("fjs"), keyboardIdentifier: "39")
+    XCTAssertEqual(provider.requested, ["3fs", "39s"])
+  }
+
+  func testComposerTracksTheActualStrictKeyboardIdentifier() {
+    Configuration.shared.hangulForceStrictCombinationRule = true
+    let composer = HangulComposer(type: .han3Final)
+    XCTAssertEqual(composer.keyboardIdentifier, "3fs")
+    composer.setKeyboard(identifier: "39")
+    XCTAssertEqual(composer.keyboardIdentifier, "39s")
+    Configuration.shared.hangulForceStrictCombinationRule = false
+    composer.setKeyboard(identifier: "39")
+    XCTAssertEqual(composer.keyboardIdentifier, "39")
+  }
+
+  func testShiftUsesTheUppercaseMapWhileCapsLockUsesTheLowercaseMap() {
+    let policy = stubPolicy(values: [0x66: 0x1161, 0x4A: 0x110B, 0x6A: 0x1100, 0x73: 0x11AB])
+    XCTAssertEqual(
+      policy.order(group: group("fJs"), keyboardIdentifier: "fixture").map(\.text).joined(), "Jfs")
+    let original = group("fjs")
+    let caps = StrokeGroup(
+      strokes: original.strokes.map {
+        ChordStroke(
+          id: $0.id, keyCode: $0.keyCode, text: $0.text,
+          modifiers: NSEvent.ModifierFlags.capsLock.rawValue, timestamp: $0.timestamp)
+      }, reason: original.reason, completedAt: original.completedAt)
+    XCTAssertEqual(
+      policy.order(group: caps, keyboardIdentifier: "fixture").map(\.text).joined(), "jfs")
+  }
+
+  func testVirtualJamoCodesAreClassifiedThroughLibhangulNormalization() {
+    let policy = stubPolicy(values: [0x66: 0xE061, 0x6A: 0xE00B, 0x73: 0xE0AB])
+    XCTAssertEqual(
+      policy.order(group: group("sfj"), keyboardIdentifier: "fixture").map(\.text).joined(), "jfs")
+  }
+
+  func testSpecializedAndUnsupportedKeyboardTypesPreservePressOrder() {
+    for (id, type) in [("3gs", "gureum"), ("3gc", "jaso"), ("fixture", "jamo")] {
+      let policy = stubPolicy(
+        id: id, type: type, values: [0x66: 0x1161, 0x6A: 0x110B, 0x73: 0x11AB])
+      let original = group("sfj")
+      XCTAssertEqual(policy.order(group: original, keyboardIdentifier: id), original.strokes)
+    }
+  }
+
+  func testSymbolsUnknownKeysAndMissingMappingsPreservePressOrder() {
+    let policy = ChordEmissionPolicy()
+    for original in [group("fjs,"), group("fjs?")] {
+      XCTAssertEqual(policy.order(group: original, keyboardIdentifier: "3f"), original.strokes)
+    }
+    let original = group("sfj")
+    XCTAssertEqual(policy.order(group: original, keyboardIdentifier: "missing"), original.strokes)
+    let unknown = StrokeGroup(
+      strokes: [ChordStroke(id: 1, keyCode: -1, text: "x", modifiers: 0, timestamp: 0)],
+      reason: .allReleased, completedAt: 0.1)
+    XCTAssertEqual(policy.order(group: unknown, keyboardIdentifier: "3f"), unknown.strokes)
+  }
+
+  func testGroupsWithoutInitialAndMedialBothPresentPreserveOrder() {
+    let policy = ChordEmissionPolicy()
+    for original in [group("sf"), group("sj")] {
+      XCTAssertEqual(policy.order(group: original, keyboardIdentifier: "3f"), original.strokes)
+    }
+  }
+
+  func testRepositoryParsesOnlyMapZeroAndPreservesTheKeyboardType() throws {
+    let directory = try directory()
+    try write(
+      "<hangul-keyboard id=\"fixture\" type=\"jaso-yet\"><map id=\"1\"><item key=\"0x66\" value=\"0x1100\"/></map><map id=\"0\"><item key=\"0x66\" value=\"0x1161\"/></map></hangul-keyboard>",
+      directory: directory)
+    let mapping = try XCTUnwrap(
+      ChordLayoutMappingRepository(keyboardDirectoryURL: directory).mapping(for: "fixture"))
+    XCTAssertEqual(mapping.keyboardType, "jaso-yet")
+    XCTAssertEqual(mapping.asciiToScalar, [0x66: 0x1161])
+  }
+
+  func testRepositoryCachesLoadedMappingsAcrossFileChanges() throws {
+    let directory = try directory()
+    let repository = ChordLayoutMappingRepository(keyboardDirectoryURL: directory)
+    try write(xml("<item key=\"0x66\" value=\"0x1161\"/>"), directory: directory)
+    let first = try XCTUnwrap(repository.mapping(for: "fixture"))
+    try write(xml("<item key=\"0x66\" value=\"0x1100\"/>"), directory: directory)
+    XCTAssertEqual(repository.mapping(for: "fixture"), first)
+    XCTAssertEqual(
+      ChordLayoutMappingRepository(keyboardDirectoryURL: directory).mapping(for: "fixture")?
+        .asciiToScalar[0x66],
+      0x1100)
+  }
+
+  func testRepositoryCachesMissingMappings() throws {
+    let directory = try directory()
+    let repository = ChordLayoutMappingRepository(keyboardDirectoryURL: directory)
+    XCTAssertNil(repository.mapping(for: "fixture"))
+    try write(xml("<item key=\"0x66\" value=\"0x1161\"/>"), directory: directory)
+    XCTAssertNil(repository.mapping(for: "fixture"))
+    XCTAssertNotNil(
+      ChordLayoutMappingRepository(keyboardDirectoryURL: directory).mapping(for: "fixture"))
+  }
+
+  func testMalformedOrAmbiguousXmlFallsBackToOriginalOrder() throws {
+    let directory = try directory()
+    let invalid = [
+      "<invalid/>", "<hangul-keyboard>", xml("", id: "different"),
+      xml("<item key=\"0x66\" value=\"0xD800\"/>"),
+      xml("<item key=\"0x80\" value=\"0x1161\"/>"),
+      xml("<item key=\"0x66\" value=\"0x1161\"/><item key=\"0x66\" value=\"0x1100\"/>"),
+      "<hangul-keyboard id=\"fixture\" type=\"jaso\"><map id=\"1\"/></hangul-keyboard>",
+      "<hangul-keyboard id=\"fixture\" type=\"jaso\"><map id=\"0\"/><map id=\"0\"/></hangul-keyboard>",
+    ]
+    for xml in invalid {
+      try write(xml, directory: directory)
+      let repository = ChordLayoutMappingRepository(keyboardDirectoryURL: directory)
+      XCTAssertNil(repository.mapping(for: "fixture"), xml)
+      let original = group("sfj")
+      XCTAssertEqual(
+        ChordEmissionPolicy(mappingProvider: repository).order(
+          group: original, keyboardIdentifier: "fixture"),
+        original.strokes)
+    }
+  }
+
+  func testRepositoryRejectsPathTraversalIdentifiers() throws {
+    let repository = ChordLayoutMappingRepository(keyboardDirectoryURL: try directory())
+    for identifier in ["", "../3f", "/3f", "3f.xml", "3f/other"] {
+      XCTAssertNil(repository.mapping(for: identifier))
+    }
+  }
+
+  func testRepositoryLoadsKeyboardResourcesFromAnInjectedBundle() throws {
+    let root = try directory()
+    let bundleURL = root.appendingPathComponent("Fixture.bundle")
+    let keyboards = bundleURL.appendingPathComponent("Contents/Resources/keyboards")
+    try FileManager.default.createDirectory(at: keyboards, withIntermediateDirectories: true)
+    try write(xml("<item key=\"0x66\" value=\"0x1161\"/>"), directory: keyboards)
+    let info = try PropertyListSerialization.data(
+      fromPropertyList: ["CFBundleIdentifier": "test.chord.fixture"], format: .xml, options: 0)
+    try info.write(to: bundleURL.appendingPathComponent("Contents/Info.plist"))
+    let repository = ChordLayoutMappingRepository(bundle: try XCTUnwrap(Bundle(url: bundleURL)))
+    XCTAssertEqual(repository.mapping(for: "fixture")?.asciiToScalar[0x66], 0x1161)
+  }
+
+  func testRepositorySupportsConcurrentCachedLookups() throws {
+    let repository = ChordLayoutMappingRepository()
+    let expected = try XCTUnwrap(repository.mapping(for: "3f"))
+    let lock = NSLock()
+    var mismatches = 0
+    DispatchQueue.concurrentPerform(iterations: 64) { _ in
+      if repository.mapping(for: "3f") != expected {
+        lock.lock()
+        mismatches += 1
+        lock.unlock()
+      }
+    }
+    XCTAssertEqual(mismatches, 0)
+  }
+
+  func testPolicyTimingReportsMeasuredOverheadWithoutAFlakyThreshold() {
+    let policy = ChordEmissionPolicy()
+    let input = group("sfj")
+    var timings: [TimeInterval] = []
+    for _ in 0..<1000 {
+      let start = ProcessInfo.processInfo.systemUptime
+      let result = policy.order(group: input, keyboardIdentifier: "3f")
+      timings.append(ProcessInfo.processInfo.systemUptime - start)
+      XCTAssertEqual(result.map(\.text).joined(), "jfs")
+    }
+    timings.sort()
+    print("Chord policy seconds p50=\(timings[500]) p95=\(timings[950]) p99=\(timings[990])")
   }
 }
 
