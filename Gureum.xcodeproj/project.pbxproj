@@ -1052,7 +1052,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "cd ${PROJECT_DIR}\ntag=`git describe --tags`\ntag=${tag#GureumKIM-}\nif [ $CONFIGURATION != \"Release\" ]; then\n    tag=\"$tag\"-Debug\nfi\necho \"VERSION = $tag\" > OSX/Version.xcconfig\n";
+			shellScript = "cd ${PROJECT_DIR}\ntag=`git describe --tags`\ntag=${tag#GureumKIM-}\ntag=${tag#Baram-}\nif [ $CONFIGURATION != \"Release\" ]; then\n    tag=\"$tag\"-Debug\nfi\necho \"VERSION = $tag\" > OSX/Version.xcconfig\n";
 		};
 		38E9024E21344640005DF76A /* Print environment variables */ = {
 			isa = PBXShellScriptBuildPhase;

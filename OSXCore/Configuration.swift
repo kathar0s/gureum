@@ -56,6 +56,8 @@ public struct InputMethodIdentity {
   public var supportsPhysicalChording: Bool { productKind != .upstream }
   public var recordsChordDiagnostics: Bool { productKind == .lab }
   public var supportsUpstreamUpdates: Bool { productKind == .upstream }
+  public var supportsUpdates: Bool { productKind != .lab }
+  public var supportsExperimentalUpdates: Bool { productKind == .upstream }
 
   public func identifier(for suffix: String) -> String {
     "\(inputSourcePrefix).\(suffix)"
@@ -90,6 +92,8 @@ enum ConfigurationName {
 
   /// Esc 키로 로마자 자판으로 전환 (vi 모드).
   public static let romanModeByEscapeKey = "ExchangeToRomanModeByEscapeKey"
+  /// Esc로 로마자 전환을 사용할 앱의 번들 식별자와 표시 이름.
+  public static let romanModeByEscapeKeyApplications = "ExchangeToRomanModeByEscapeKeyApplications"
   /// 한글 입력기일 때 역따옴표(`)로 원화 기호(₩) 입력.
   public static let hangulWonCurrencySymbolForBackQuote = "HangulWonCurrencySymbolForBackQuote"
   /// 한글 입력기에서 물리적 역따옴표(`) 키로 입력할 사용자 지정 문자.
@@ -117,7 +121,8 @@ enum ConfigurationName {
   static let migratable = [
     lastHangulInputMode, lastRomanInputMode, inputModeExchangeKey, inputModeSearchKey,
     inputModeEnglishKey, inputModeKoreanKey, optionKeyBehavior, overridingKeyboardName,
-    romanModeByEscapeKey, hangulWonCurrencySymbolForBackQuote, hangulBackQuoteOutputCharacter,
+    romanModeByEscapeKey, romanModeByEscapeKeyApplications,
+    hangulWonCurrencySymbolForBackQuote, hangulBackQuoteOutputCharacter,
     hangulShiftBackQuoteOutputCharacter, hangulAutoReorder,
     hangulNonChoseongCombination, hangulDeferredSymbolCommit,
     hangulForceStrictCombinationRule, rightToggleKey, updateNotification,
@@ -127,7 +132,7 @@ enum ConfigurationName {
 
 // MARK: - Configuration 클래스
 
-public enum UpdateMode {
+public enum UpdateMode: Equatable {
   case stable
   case experimental
 }
@@ -329,6 +334,27 @@ public class Configuration: UserDefaults {
     set {
       set(newValue, forKey: ConfigurationName.romanModeByEscapeKey)
     }
+  }
+
+  public var romanModeByEscapeKeyApplications: [String: String] {
+    get {
+      guard let values = dictionary(forKey: ConfigurationName.romanModeByEscapeKeyApplications)
+      else { return [:] }
+      return values.reduce(into: [:]) { result, entry in
+        guard !entry.key.isEmpty, let name = entry.value as? String, !name.isEmpty else { return }
+        result[entry.key] = name
+      }
+    }
+    set {
+      let values = newValue.filter { !$0.key.isEmpty && !$0.value.isEmpty }
+      set(values, forKey: ConfigurationName.romanModeByEscapeKeyApplications)
+    }
+  }
+
+  public func usesRomanModeByEscapeKey(for bundleIdentifier: String?) -> Bool {
+    if romanModeByEscapeKey { return true }
+    guard let bundleIdentifier, !bundleIdentifier.isEmpty else { return false }
+    return romanModeByEscapeKeyApplications[bundleIdentifier] != nil
   }
 
   /// 한글 입력기일 때 역따옴표(`)로 원화 기호(₩) 입력.

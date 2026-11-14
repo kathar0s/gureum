@@ -23,6 +23,7 @@ struct GureumMenuCapabilities {
   let sourceURL: URL?
   let donationURL: URL?
   let supportsUpdates: Bool
+  let supportsExperimentalUpdates: Bool
 
   static func current(
     bundle: Bundle = .main, identity: InputMethodIdentity = .current
@@ -33,19 +34,27 @@ struct GureumMenuCapabilities {
       .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
       .first { !$0.isEmpty }
       ?? "구름 입력기"
-    if identity.usesForkServices {
+    if identity.isBaram {
+      return GureumMenuCapabilities(
+        displayName: displayName, websiteURL: URL(string: "https://baram.sionyuel.com"),
+        helpURL: nil, issuesURL: URL(string: "https://github.com/sionyuel/baram/issues"),
+        sourceURL: URL(string: "https://github.com/sionyuel/baram"), donationURL: nil,
+        supportsUpdates: true, supportsExperimentalUpdates: false)
+    }
+    if identity.isChordLab {
       return GureumMenuCapabilities(
         displayName: displayName, websiteURL: nil, helpURL: nil,
         issuesURL: URL(string: "https://github.com/kathar0s/gureum/issues"),
         sourceURL: URL(string: "https://github.com/kathar0s/gureum"), donationURL: nil,
-        supportsUpdates: false)
+        supportsUpdates: false, supportsExperimentalUpdates: false)
     }
     return GureumMenuCapabilities(
       displayName: displayName, websiteURL: URL(string: "http://gureum.io"),
       helpURL: URL(string: "http://dan.gureum.io"),
       issuesURL: URL(string: "http://meok.gureum.io"),
       sourceURL: URL(string: "http://ssi.gureum.io"),
-      donationURL: URL(string: "http://donation.gureum.io"), supportsUpdates: true)
+      donationURL: URL(string: "http://donation.gureum.io"), supportsUpdates: true,
+      supportsExperimentalUpdates: true)
   }
 }
 
@@ -110,7 +119,7 @@ struct GureumMenuBuilder {
           "후원하기", action: #selector(InputController.openWebsiteDonation(_:)), identifier: "donation"
         ))
     }
-    if includeDeveloperTools, capabilities.supportsUpdates {
+    if includeDeveloperTools, capabilities.supportsExperimentalUpdates {
       if !support.items.isEmpty { support.addItem(.separator()) }
       let developer = NSMenu(title: "개발자")
       developer.addItem(
@@ -178,7 +187,11 @@ extension InputController {
   }
 
   private func checkVersion(mode: UpdateMode) {
-    guard GureumMenuCapabilities.current().supportsUpdates else { return }
+    let capabilities = GureumMenuCapabilities.current()
+    guard capabilities.supportsUpdates,
+      mode == .stable || capabilities.supportsExperimentalUpdates
+    else { return }
+    let displayName = capabilities.displayName
     var title = ""
     var version = ""
     switch mode {
@@ -192,22 +205,25 @@ extension InputController {
     UpdateManager.shared.requestVersionInfo(mode: mode) { info in
       guard let info = info else {
         let alert = NSAlert()
-        alert.messageText = "구름 입력기 \(title) 확인"
+        alert.messageText = "\(displayName) \(title) 확인"
         alert.addButton(withTitle: "확인")
-        alert.informativeText = "\(title) 정보에 접근할 수 없습니다. 인터넷에 연결되어 있지 않거나 구름 업데이트의 버그일 수 있습니다."
+        alert.informativeText =
+          "\(title) 정보에 접근할 수 없습니다. 인터넷 연결 또는 \(displayName) 업데이트 서버를 확인해 주세요."
         alert.runModal()
         return
       }
-      if info.update.version == info.current {
-        let fmt = "현재 사용하고 있는 구름 입력기 \(info.current ?? "-") 는 최신 \(version)입니다."
+      if !UpdateManager.shouldOffer(
+        updateVersion: info.update.version, currentVersion: info.current)
+      {
+        let fmt = "현재 사용 중인 \(displayName) \(info.current ?? "-")은 최신 \(version)입니다."
         let alert = NSAlert()
-        alert.messageText = "구름 입력기 \(title) 확인"
+        alert.messageText = "\(displayName) \(title) 확인"
         alert.addButton(withTitle: "확인")
         alert.informativeText = fmt
         alert.runModal()
       } else {
         var message =
-          "현재 사용하고 있는 구름 입력기는 \(info.current ?? "-") 이고 최신 \(version)은 \(info.update.version) 입니다. 업데이트는 로그아웃하거나 재부팅해야 적용됩니다."
+          "현재 \(displayName)은 \(info.current ?? "-")이고 최신 \(version)은 \(info.update.version)입니다. 업데이트는 로그아웃하거나 재부팅해야 적용됩니다."
         if !info.update.description.isEmpty {
           message += " 업데이트 요약은 '\(info.update.description)' 입니다."
         }
@@ -217,7 +233,7 @@ extension InputController {
           message += " 현재 업데이트 링크를 찾을 수 없습니다. 버그 리포트를 부탁드립니다."
         }
         let alert = NSAlert()
-        alert.messageText = "구름 입력기 \(title) 확인"
+        alert.messageText = "\(displayName) \(title) 확인"
         alert.addButton(withTitle: "확인")
         alert.informativeText = message
         alert.runModal()

@@ -61,9 +61,9 @@
                         <buttonCell key="cell" type="check" title="실험 버전 알림" bezelStyle="regularSquare" id="76s-8b-LUT"/>
                         <connections><action selector="updateNotificationExperimentalValueChanged:" target="DMm-2g-KCR" id="experimental-action"/></connections>
                     </button>
-                    <popUpButton hidden="YES" id="O2x-rR-7JO">
+                    <popUpButton hidden="YES" id="O2x-rR-7JO" customClass="SystemSettingsPopUpButton">
                         <rect key="frame" x="0.0" y="0.0" width="224" height="30"/>
-                        <popUpButtonCell key="cell" type="push" title="사용 안 함" bezelStyle="rounded" alignment="right" selectedItem="gpa-BJ-0Mf" id="ZdG-zP-BO7">
+                        <popUpButtonCell key="cell" type="push" title="사용 안 함" bezelStyle="rounded" alignment="right" selectedItem="gpa-BJ-0Mf" id="ZdG-zP-BO7" customClass="SystemSettingsPopUpButtonCell">
                             <menu key="menu" id="Ft9-Ec-IoD"><items>
                                 <menuItem title="사용 안 함" state="on" id="gpa-BJ-0Mf"/>
                                 <menuItem title="Command ⌘" id="SsR-ab-evp"/>
@@ -73,9 +73,9 @@
                         </popUpButtonCell>
                         <connections><action selector="rightToggleKeyValueChanged:" target="DMm-2g-KCR" id="OVm-jb-sdZ"/></connections>
                     </popUpButton>
-                    <popUpButton hidden="YES" id="EaM-Q7-ATG">
+                    <popUpButton hidden="YES" id="EaM-Q7-ATG" customClass="SystemSettingsPopUpButton">
                         <rect key="frame" x="0.0" y="0.0" width="224" height="30"/>
-                        <popUpButtonCell key="cell" type="push" title="특수 문자" bezelStyle="rounded" selectedItem="FE5-DM-KYV" id="hhB-K0-qj7">
+                        <popUpButtonCell key="cell" type="push" title="특수 문자" bezelStyle="rounded" selectedItem="FE5-DM-KYV" id="hhB-K0-qj7" customClass="SystemSettingsPopUpButtonCell">
                             <menu key="menu" id="TvA-lm-MvE"><items>
                                 <menuItem title="특수 문자" state="on" id="FE5-DM-KYV"/>
                                 <menuItem title="로마자" id="NpE-Q1-rJd"/>

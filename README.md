@@ -1,124 +1,101 @@
-![logo](OSX/Assets.xcassets/AppIcon.appiconset/icon_256x256.png)
+<p align="center">
+  <img src="docs/brand/baram/assets/baram-app-icon-concept-128.png" width="112" height="112" alt="바람 입력기 아이콘">
+</p>
 
-![platform](https://img.shields.io/badge/platform-macos-lightgrey)
-[![CI](https://github.com/gureum/gureum/actions/workflows/ci.yaml/badge.svg)](https://github.com/gureum/gureum/actions/workflows/ci.yaml)
+# 바람 입력기
 
-# 구름 입력기
+**Baram Input Method**는 macOS용 오픈소스 한글 입력기입니다. [구름 입력기](https://github.com/gureum/gureum)의 검증된 기반을 이어받아 세벌식 모아치기, 현대적인 설정 화면, 독립적인 브랜드와 업데이트 경로를 다듬고 있습니다.
 
-macOS를 위한 새로운 한글 입력기
+> 현재 상태: 개발자용 시험 빌드입니다. Apple Developer ID 서명·공증을 마친 공개 설치 파일은 아직 제공하지 않습니다.
 
-## 소개
+[![platform](https://img.shields.io/badge/macOS-12%2B-111827?logo=apple)](https://github.com/sionyuel/baram)
+[![architectures](https://img.shields.io/badge/architecture-Apple%20Silicon%20%7C%20Intel-458C80)](https://github.com/sionyuel/baram)
+[![license](https://img.shields.io/badge/license-BSD--2--Clause%20%2B%20LGPL--2.1-blue)](COPYING)
 
-구름 입력기는 빠르고 쓰기 편한 macOS용 한글 입력기입니다. 세 가지 가치를 목표로 개발하고 있습니다.
+## 주요 기능
 
-- **편리하게.** [libhangul](https://github.com/libhangul/libhangul) 기반으로 모아치기를 지원합니다. 모아치기 기능은 세벌식 사용자에게 특히 더 유용합니다.
-- **가볍게.** 최소한의 기능만 구현하여 가볍게 돌아갑니다.
-- **자유롭게.** 구름 입력기는 오픈 소스 소프트웨어입니다. 소스 코드는 BSD와 LGPL로 배포됩니다.
+- 두벌식, 세벌식 최종·390·순아래·옛글·2011·2012 등 여러 한글 자판
+- 로마자, QWERTY, Dvorak, Colemak 계열 입력 소스
+- 순서가 바뀐 낱자와 역순 복합 모음을 보정하는 모아치기
+- 한글 자판 XML을 그대로 읽는 설정 화면의 키보드 미리보기
+- `` ` `` 및 `Shift+`` 키에 자주 쓰는 문자 한 글자 지정
+- 선택한 앱에서만 Esc 또는 `Control+[`로 로마자 전환
+- Apple Silicon과 Intel을 함께 지원하는 Universal 빌드
+- 구름 입력기와 분리된 앱·입력 소스·설정·업데이트 식별자
 
-## 장점
-
-- `libhangul` 기반으로 만들어져 한글 두벌식 및 세벌식 등 다양한 자판을 지원하고, 드보락이나 콜맥을 포함해 어떤 시스템 자판과도 결합해 사용할 수 있습니다.
-- 입력기 전환을 막기 위해 쿼티 자판을 추가로 내장하고 있어 한글-쿼티 전환이 빠릅니다. 일부 환경에서 자판 전환이 느릴 때 도움을 줍니다.
-
-## 지원 자판
-
-구름 입력기에서 선택할 수 있는 한글·로마자 자판 목록과 자판별 안내는 [지원 자판](docs/keyboards/README.md)에서 확인할 수 있습니다.
+지원 자판과 자판별 주의사항은 [지원 자판 문서](docs/keyboards/README.md)를 참고하세요.
 
 ## 설치
 
-### Homebrew 사용
+### 공개 배포
 
-[Homebrew](https://brew.sh/) 사용자는 다음의 명령으로 간편하게 설치할 수 있습니다.
+정식 배포 주소는 [baram.sionyuel.com](https://baram.sionyuel.com)입니다. 현재는 서명·공증된 다운로드를 준비 중이며, 출처를 확인할 수 없는 재배포 파일 설치는 권장하지 않습니다.
+
+### 소스에서 시험 빌드
+
+요구 환경은 macOS 12 이상과 Xcode입니다.
 
 ```sh
-brew install --cask gureumkim
+git clone --recurse-submodules https://github.com/sionyuel/baram.git
+cd baram
+make init
+GUREUM_BARAM_ARCHS='arm64 x86_64' tools/install_baram.sh --install
 ```
 
-### 패키지 설치
+설치 후 `시스템 설정 → 키보드 → 텍스트 입력 → 편집`에서 `Baram ·`으로 시작하는 자판을 추가하세요. 입력 소스가 바로 나타나지 않으면 로그아웃 후 다시 로그인해야 할 수 있습니다.
 
-1. [다운로드 페이지](http://bi.gureum.org)에서 가장 높은 버전의 GureumKIM1.x.pkg를 다운받아 실행하고 지시대로 설치합니다. 설치 할 디스크는 바꾸시면 안됩니다.
-1. '시스템 환경설정 → 키보드 → 입력 소스'에 들어가 구름 입력기가 제공하는 입력 소스를 추가합니다.
+설치 스크립트는 기존 Baram 앱을 `~/Library/Application Support/Baram/Backups/`에 보존합니다. 구름 입력기나 다른 입력기는 변경하지 않습니다.
 
-### 수동 설치
-
-위의 설치 과정을 마쳤음에도 입력기가 나타나지 않는다면 설치 패키지가 입력기를 올바르게 설치하지 못한 것입니다. 다음 방법으로 수동으로 설치합니다.
-
-1. 위 다운로드 페이지에서 가장 높은 버전의 GureumKIM1.x.zip을 다운받아 압축을 해제합니다.
-2. GureumKIM.app을 `/Library/Input Methods`에 복사합니다. (Finder에서 루트 디스크 선택 → 라이브러리 → Input Methods)
-3. 로그아웃 후 다시 로그인하여 입력 소스에서 구름 입력기를 선택합니다.
-
----
-
-- '시스템 환경설정 → 키보드 → 입력 소스'의 '메뉴 막대에서 입력 메뉴 보기' 설정을 활성화하면 화면 우측 상단에 위치한 메뉴 막대에서 입력 메뉴를 통해 입력기를 선택할 수 있습니다.
-- 주 한글 자판을 선택하기 위해 사용할 한글 자판을 수동으로 한번 선택해 줍니다. `Caps Lock 키로 입력 소스 전환` 설정을 해두었다면, 다음부터는 <kbd>Caps Lock</kbd>으로 자동으로 선택한 자판으로 이동합니다.
-  - <kbd>⇧Space</kbd> 등의 전통적인 단축키를 쓰고 싶으면 환경설정에서 자판 전환 단축키를 지정해 주세요.
+```sh
+tools/baram_input_source.sh list
+tools/baram_input_source.sh select han3final
+```
 
 ## 제거
 
-제거하기 전에 **사용 중인 입력기를 OS 기본 입력기로 전환**해 주세요.
-
-### Homebrew 사용
-
-Homebrew로 설치한 경우 다음의 명령으로 간편하게 삭제할 수 있습니다.
+먼저 ABC 또는 다른 입력기로 전환한 다음 아래 명령을 실행하세요.
 
 ```sh
-brew uninstall --cask gureumkim
+tools/install_baram.sh --uninstall
 ```
 
-### 빠른 삭제
+Baram 앱은 백업 폴더로 이동하며 사용자 설정은 자동 삭제하지 않습니다.
 
-1. `터미널.app (Terminal.app)`을 실행합니다.
-2. 다음의 명령을 터미널에 입력하고 Enter 키를 눌러 명령을 실행합니다. 패스워드를 요구한다면 패스워드를 입력해 줍니다.
+## 권한과 개인정보
 
-   ```sh
-   curl -fsSL https://raw.githubusercontent.com/gureum/gureum/main/tools/uninstall.sh | bash
-   ```
+일반 한글 입력에는 입력 모니터링 권한이 필요하지 않습니다. 이 권한은 다음 선택 기능에만 사용합니다.
 
-### 수동 삭제
+- 오른쪽 Command·Option·Control 키를 입력 전환 키로 사용
+- 실험적인 물리적 동시입력 묶기
 
-1. `활성 상태 보기.app (Activity Monitor.app)`을 실행하고, 구름 입력기를 찾아 프로세스를 종료합니다.
-   - `gureum`을 검색하여 빠르게 찾을 수 있습니다.
-2. Finder에서 `/Library/Input Methods` 경로로 이동하여 `Gureum.app`을 삭제합니다.
+권한은 설정 화면의 명시적인 버튼을 누른 경우에만 macOS에 요청합니다. Release 빌드는 입력 내용이나 조합 문자열을 수집하지 않습니다. Debug 빌드는 개발 로그가 남을 수 있으므로 민감한 문장을 입력하지 마세요.
 
-## 개발 환경 설정
+## 업데이트
 
-구름 입력기의 개발 환경을 설정하고 디버깅 할 수 있는 방법을 제공합니다. [개발하기](https://github.com/gureum/gureum/blob/main/HACKING.md) 문서를 참고해 주세요.
+Baram은 구름의 업데이트 서버를 사용하지 않습니다. 정식 버전은 `https://baram.sionyuel.com/version.json`의 독립 피드에서 확인하며, 설정에서 알림을 끌 수 있습니다. 공개 배포 전에는 해당 피드가 비어 있거나 응답하지 않을 수 있습니다.
 
-개선 제안과 관련된 사항은 [기여하기](https://github.com/gureum/gureum/blob/main/CONTRIBUTING.md) 문서를 참고해 주세요.
+## 개발
 
-## 버그 신고
+전체 테스트:
 
-입력기 사용 중 문제가 있으면 어떤 문제가 있나 알려주시면 도움이 됩니다.
+```sh
+xcodebuild -project Gureum.xcodeproj -scheme OSX -sdk macosx \
+  -destination 'platform=macOS' test \
+  -onlyUsePackageVersionsFromResolvedFile \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+```
 
-버그가 재현되는지 확인해 주시고 [이슈 페이지](https://github.com/gureum/gureum/issues)에 사용 환경과 버그를 재현하는 방법을 알려주시면 고치도록 노력하겠습니다.
+빌드 구조와 서브모듈 정책은 [HACKING.md](HACKING.md), 변경 제안과 버그 보고 방법은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요. 보안 문제는 공개 이슈 대신 [SECURITY.md](SECURITY.md)의 비공개 신고 절차를 이용해 주세요.
 
-이슈 템플릿 작성은 [기여하기](https://github.com/gureum/gureum/blob/main/CONTRIBUTING.md) 문서를 참고해 주세요.
+## 프로젝트 계보
 
-## 만든 사람들
+Baram은 Gureum에서 출발한 독립 프로젝트입니다. 기존 저작권과 기여 이력을 존중하며, 과거에 존재했던 동명의 “한글입력기 바람”의 공식 후속판임을 주장하지 않습니다.
 
-구름 입력기는 많은 분들의 도움으로 함께 개발되고 있습니다.
+- 상위 프로젝트: [gureum/gureum](https://github.com/gureum/gureum)
+- 한글 조합 엔진: [libhangul](https://github.com/libhangul/libhangul)
+- 공개 저장소: [sionyuel/baram](https://github.com/sionyuel/baram)
+- 공식 배포 도메인: [baram.sionyuel.com](https://baram.sionyuel.com)
 
-### 코드 기여자
+## 라이선스
 
-[![](https://opencollective.com/gureum/contributors.svg?width=890&button=false)](https://github.com/gureum/gureum/graphs/contributors)
-
-### 재정 후원
-
-재정 후원은 프로젝트의 유지에 큰 힘이 됩니다. [후원하기](https://opencollective.com/gureum/contribute)
-
-#### 개인
-
-[![](https://opencollective.com/gureum/individuals.svg?width=890)](https://opencollective.com/gureum)
-
-#### 단체
-
-[![](https://opencollective.com/gureum/organization/0/avatar.svg)](https://opencollective.com/gureum/organization/0/website)
-[![](https://opencollective.com/gureum/organization/1/avatar.svg)](https://opencollective.com/gureum/organization/1/website)
-[![](https://opencollective.com/gureum/organization/2/avatar.svg)](https://opencollective.com/gureum/organization/2/website)
-[![](https://opencollective.com/gureum/organization/3/avatar.svg)](https://opencollective.com/gureum/organization/3/website)
-[![](https://opencollective.com/gureum/organization/4/avatar.svg)](https://opencollective.com/gureum/organization/4/website)
-[![](https://opencollective.com/gureum/organization/5/avatar.svg)](https://opencollective.com/gureum/organization/5/website)
-[![](https://opencollective.com/gureum/organization/6/avatar.svg)](https://opencollective.com/gureum/organization/6/website)
-[![](https://opencollective.com/gureum/organization/7/avatar.svg)](https://opencollective.com/gureum/organization/7/website)
-[![](https://opencollective.com/gureum/organization/8/avatar.svg)](https://opencollective.com/gureum/organization/8/website)
-[![](https://opencollective.com/gureum/organization/9/avatar.svg)](https://opencollective.com/gureum/organization/9/website)
+저장소의 코드와 포함된 의존성·아이콘 자산에는 서로 다른 라이선스가 적용될 수 있습니다. 프로젝트 코드의 기본 조건과 저작권 고지는 [COPYING](COPYING), 아이콘 관련 고지는 [OSX/Icons/COPYING](OSX/Icons/COPYING)을 확인하세요. `libhangul` 및 하위 구성요소의 라이선스는 각 서브모듈에 포함된 문서를 따릅니다.

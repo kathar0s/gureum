@@ -28,6 +28,8 @@ xcodebuild -project Gureum.xcodeproj -scheme OSX -sdk macosx \
 Swift 패키지는 `Gureum.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`에 고정합니다.
 의존성을 갱신할 때만 이 파일을 업데이트하고, CI는 고정된 버전을 사용합니다.
 
+Baram 공개 버전은 기존 Gureum 번들 버전보다 단조 증가하도록 `2.0.0`부터 시작하며 릴리스 태그는 `Baram-2.0.0` 형식을 사용합니다.
+
 ### git submodule 가져오기
 
 libhangul의 라이선스 전파성을 피하기 위해 프로젝트를 분리하여 준비가 조금 복잡합니다.
@@ -35,13 +37,13 @@ libhangul의 라이선스 전파성을 피하기 위해 프로젝트를 분리�
 git submodule을 포함하고 있으므로 클론 후 submodule도 가져오도록 해야합니다.
 
 ``` sh
-git clone --recurse-submodules https://github.com/kathar0s/gureum.git
-cd gureum
+git clone --recurse-submodules https://github.com/sionyuel/baram.git
+cd baram
 make init
 open Gureum.xcodeproj
 ```
 
-이 포크의 `libhangul-objc`는 `kathar0s/libhangul-objc`에서 버전이 고정된 커밋을 가져옵니다.
+이 포크의 `libhangul-objc`는 `sionyuel/libhangul-objc`에서 버전이 고정된 커밋을 가져옵니다.
 서브모듈의 빌드 설정을 바꿀 때는 해당 포크에 커밋을 먼저 푸시한 뒤 부모 저장소의 서브모듈 커밋을 갱신합니다.
 원본 변경을 비교하려면 서브모듈 안에서 `https://github.com/gureum/libhangul-objc.git`을 `upstream` 원격으로 사용합니다.
 

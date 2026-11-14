@@ -56,9 +56,9 @@ Jobs: select a familiar layout, change a shortcut, enable automatic ordering, di
 
 Observed and retained preferences structure:
 
-- **입력**: Hangul composition, strict combinations, configurable grave/Shift-grave characters, Roman layout, Option behavior.
+- **입력**: Hangul composition, strict combinations, configurable grave/Shift-grave characters, Roman layout, Option behavior, and a keyboard preview generated from the active layout XML.
 - **단축키**: Hangul/Roman switch, Hanja/emoji, direct language shortcuts, plus always-visible Right-key Switching and System Shortcuts groups with native Open buttons.
-- **고급**: application compatibility, Esc behavior, updates; a plain Developer group appears only in Debug.
+- **고급**: application compatibility, per-application Esc behavior, stable updates, and clearly labelled experimental physical input. Internal crash verification is not user-facing.
 
 Brand/readme hierarchy: name → one-line purpose → verified capabilities → installation → trial/rollback → provenance. Keep experimental status and ad-hoc/notarization facts near installation decisions.
 
@@ -117,7 +117,7 @@ Typography:
 - Poetic line: **AppleMyungjo**, used only in large brand/editorial settings. Fallback to the system Korean serif. Never use it for controls or dense help.
 - Shipping vector wordmarks should eventually be outlined after approval; the current sheet keeps live accessible text for review and relies on installed macOS fonts.
 
-Spacing: 4/6/8/10/12/16/20 pt rhythm. The user's System Settings reference and independent advisor supersede both earlier large forms. Content width is fixed at 500 pt with 20 pt edges; the app window fits its height to the active category between 300 and 680 pt, keeping the top edge stable. Rows use a 34 pt minimum plus a 1 pt separator, 10 pt horizontal insets, and true label/control vertical centering. Separators are inset 10 pt. Section headers use 13 pt bold primary text aligned with the row labels; at most one concise 11 pt explanation sits below the group as a footer. Native switches use `.mini` (36×16 pt on macOS 26). Value popups are borderless `.small` native controls so they match System Settings; their width is capped at 220 pt for long-name truncation. Editable single-character fields use a bordered `.small` 72 pt control for clear affordance. Support buttons remain bordered `.small`. Shortcut recorders use MASShortcut's native textured alignment at 120 pt, including its corrected clear-glyph position. Section gaps are 20 pt; no row subtitles or collapsible help.
+Spacing: 4/6/8/10/12/16/20 pt rhythm. The user's System Settings reference and independent advisor supersede both earlier large forms. Content width is fixed at 500 pt with 20 pt edges; the app window fits its height to the active category between 300 and 680 pt, keeping the top edge stable. Rows use a 34 pt minimum plus a 1 pt separator, 10 pt horizontal insets, and true label/control vertical centering. Separators are inset 10 pt. Section headers use 13 pt bold primary text aligned with the row labels; at most one concise 11 pt explanation sits below the group as a footer. Native switches use `.mini` (36×16 pt on macOS 26). Value popups are borderless `.small` native controls with the current System Settings circular up/down-chevron accessory; their width is capped at 220 pt for long-name truncation. Editable single-character fields use a bordered `.small` 72 pt control for clear affordance. Support buttons remain bordered `.small`. Shortcut recorders use MASShortcut's native textured alignment at 120 pt, including its corrected clear-glyph position. Section gaps are 20 pt; no row subtitles or collapsible help.
 
 Shape/elevation: native window chrome and stock `NSBox(.primary)` preference groups with system-owned fill/corners. No custom group fill, border, or radius: on macOS 26 the group should become slightly lighter than its dark window and slightly darker than its light window. Brand document target radii remain 8/12/20 pt plus pill and do not override native control geometry. No nested cards, floating shadows, or gloss. App-icon source master is a full 1024×1024 square with separate background/mark layers; the OS supplies the final mask. Rounded containers shown on the sheet are presentation mockups, not baked production masks.
 
@@ -136,7 +136,7 @@ Iconography: original **바람 궤적 B** mark; system SF Symbols for functional
 | Menu symbol | System input-source rows use direct 22×16 jade or Roman-brown code badges without the brand mark; the visible mode name remains the primary textual identifier |
 | Category navigation | App path: centered native preference toolbar with Input / Shortcuts / Advanced icons and fitted content height. prefPane fallback: native three-way segmented control |
 | Boolean setting | Native mini NSSwitch with VoiceOver name matching its visible row label; explanations belong to the group |
-| Value menu | Stock borderless regular NSPopUpButton with natural font/size and system-drawn arrow/hover/focus/type-select; no accessory style, custom cell, chip, or arrow overlay |
+| Value menu | Borderless small NSPopUpButton retaining native menu/hover/focus/type-select behavior, with a semantic-color circular `chevron.up.chevron.down` accessory matching current System Settings |
 | Two-choice setting | The same native popup language as other value settings; Option reuses its existing popup/action |
 | Special-character key | Two 72 pt native text fields configure unshifted and Shift+grave output; one grapheme only, empty restores the active layout's default |
 | Shortcut capture | Existing MASShortcut behavior with consistent width and accessible label |
@@ -147,7 +147,7 @@ Token ownership: `docs/brand/baram/tokens.css` owns proposed brand-document colo
 
 ## Accessibility
 
-Aim for WCAG 2.2 AA-equivalent visual contrast and macOS platform accessibility behavior. Test keyboard traversal, Space/Return menu opening, arrow/type-to-select, popup value announcement, switch label/value, and focus visibility. Enable automatic key-loop recalculation; category changes keep traversal in the active page in row order. Recorder controls accept keyboard focus and use the bundled Korean button-title localization. Do not use color alone to show an enabled mode. Keep native controls rather than a drawn imitation.
+Aim for WCAG 2.2 AA-equivalent visual contrast and macOS platform accessibility behavior. Test keyboard traversal, Space/Return menu opening, arrow/type-to-select, popup value announcement, switch label/value, and focus visibility. Enable automatic key-loop recalculation; category changes keep traversal in the active page in row order. Recorder controls accept keyboard focus and use the bundled Korean button-title localization. Do not use color alone to show an enabled mode. The popup accessory is decorative; the underlying native popup remains the accessibility and interaction surface.
 
 The HTML sheet has semantic page labels, headings, live text, and screenshot descriptions; original SVG marks are described in text. PDF and PNG are generated review formats; HTML and the design document remain the accessible source. The earlier SVG overview also retains title/description/live text.
 
@@ -167,7 +167,7 @@ This is a macOS desktop input method. Preferences keep a 500 pt content width. T
 
 ## Content voice
 
-Use calm Korean with short, concrete labels. A setting title names the behavior; one secondary sentence explains the effect or compatibility target. “모아치기” describes automatic reorder only. “세벌식 정석 조합” selects the dedicated 3F/390 combination tables that constrain compound vowels and final clusters; it is not physical chord capture. “물리적 동시입력” is reserved for verified key-hold grouping. Avoid “완벽한”, “가장 빠른”, or “모든 앱 지원” without evidence.
+Use calm Korean with short, concrete labels. A setting title names the behavior; one secondary sentence explains the effect or compatibility target. “모아치기” describes automatic reorder, including a reversed compound-vowel pair when the active layout defines only the canonical order. “세벌식 정석 조합” selects the dedicated 3F/390 combination tables that constrain compound vowels and final clusters; it is not physical chord capture. “물리적 동시입력” is reserved for verified key-hold grouping. Avoid “완벽한”, “가장 빠른”, or “모든 앱 지원” without evidence.
 
 Brand line proposal: **나의 바람대로, 한글이 흐르다.** Alternative short signature: **손끝의 바람, 글이 되다.** The line is a brand promise of intention, not a technical claim of perfect recognition.
 

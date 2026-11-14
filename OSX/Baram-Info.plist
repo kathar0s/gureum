@@ -9,7 +9,8 @@
 	<key>CFBundleExecutable</key>
 	<string>${EXECUTABLE_NAME}</string>
 	<key>CFBundleGetInfoString</key>
-	<string>${VERSION}, Copyright © 2026 Sionyuel; based on Gureum © 2011-2022 Jeong YunWon and contributors</string>
+	<string>${VERSION}, Copyright © 2026 Sionyuel
+Based on Gureum © 2011-2022 Jeong YunWon and contributors</string>
 	<key>CFBundleIconFile</key>
 	<string></string>
 	<key>CFBundleIdentifier</key>
@@ -467,7 +468,8 @@
 		<true/>
 	</dict>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright © 2026 Sionyuel. Based on Gureum © 2011-2022 Jeong YunWon and contributors.</string>
+	<string>Copyright © 2026 Sionyuel.
+Based on Gureum © 2011-2022 Jeong YunWon and contributors.</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>

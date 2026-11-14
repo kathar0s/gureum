@@ -9,6 +9,245 @@
 import Cocoa
 import Foundation
 import MASShortcut
+import UniformTypeIdentifiers
+
+@objc(SystemSettingsPopUpButtonCell)
+final class SystemSettingsPopUpButtonCell: NSPopUpButtonCell {
+  override func drawTitle(
+    _ title: NSAttributedString, withFrame frame: NSRect, in controlView: NSView
+  ) -> NSRect {
+    var titleFrame = frame
+    titleFrame.size.width = max(0, titleFrame.width - 24)
+    return super.drawTitle(title, withFrame: titleFrame, in: controlView)
+  }
+}
+
+@objc(SystemSettingsPopUpButton)
+final class SystemSettingsPopUpButton: NSPopUpButton {
+  private var usesSystemSettingsAccessory = false
+  private static let accessoryDiameter: CGFloat = 20
+
+  override init(frame buttonFrame: NSRect, pullsDown flag: Bool) {
+    super.init(frame: buttonFrame, pullsDown: flag)
+    let replacement = SystemSettingsPopUpButtonCell(textCell: "")
+    replacement.pullsDown = flag
+    replacement.menu = menu
+    cell = replacement
+  }
+
+  required init?(coder: NSCoder) {
+    super.init(coder: coder)
+  }
+
+  override var intrinsicContentSize: NSSize {
+    var size = super.intrinsicContentSize
+    if usesSystemSettingsAccessory {
+      size.width += 30
+      size.height = max(size.height, Self.accessoryDiameter)
+    }
+    return size
+  }
+
+  func applySystemSettingsStyle() {
+    usesSystemSettingsAccessory = true
+    isBordered = false
+    controlSize = .small
+    alignment = .right
+    (cell as? NSPopUpButtonCell)?.arrowPosition = .noArrow
+    invalidateIntrinsicContentSize()
+  }
+
+  override func draw(_ dirtyRect: NSRect) {
+    super.draw(dirtyRect)
+    guard usesSystemSettingsAccessory else { return }
+
+    let diameter = Self.accessoryDiameter
+    let bounds = NSRect(
+      x: self.bounds.maxX - diameter,
+      y: self.bounds.midY - diameter / 2,
+      width: diameter,
+      height: diameter)
+    NSColor.quaternaryLabelColor.setFill()
+    NSBezierPath(ovalIn: bounds).fill()
+
+    guard
+      let symbol = NSImage(
+        systemSymbolName: "chevron.up.chevron.down", accessibilityDescription: nil),
+      let configured = symbol.withSymbolConfiguration(
+        NSImage.SymbolConfiguration(pointSize: 8, weight: .semibold)
+          .applying(NSImage.SymbolConfiguration(paletteColors: [.secondaryLabelColor])))
+    else { return }
+    configured.draw(
+      in: NSRect(x: bounds.minX + 5, y: bounds.minY + 4, width: 10, height: 12),
+      from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+  }
+
+}
+
+final class KeyboardPreviewView: NSView {
+  private static let rows: [[String]] = [
+    Array("`1234567890-=").map { String($0) },
+    Array("qwertyuiop[]\\").map { String($0) },
+    Array("asdfghjkl;'").map { String($0) },
+    Array("zxcvbnm,./").map { String($0) },
+  ]
+  private static let rowInsets: [CGFloat] = [0, 14, 28, 48]
+  private(set) var labels: [String: String] = [:]
+  private(set) var layoutName: String
+  private(set) var isAvailable = false
+
+  init(layoutIdentifier: String, layoutName: String) {
+    self.layoutName = layoutName
+    super.init(frame: .zero)
+    setAccessibilityElement(true)
+    setAccessibilityRole(.group)
+    reload(layoutIdentifier: layoutIdentifier, layoutName: layoutName)
+  }
+
+  required init?(coder: NSCoder) {
+    return nil
+  }
+
+  override var isFlipped: Bool { true }
+  override var intrinsicContentSize: NSSize { NSSize(width: 432, height: 120) }
+
+  func reload(layoutIdentifier: String, layoutName: String) {
+    let loadedLabels = Self.loadLabels(layoutIdentifier: layoutIdentifier)
+    labels = loadedLabels ?? [:]
+    isAvailable = loadedLabels != nil
+    self.layoutName = layoutName
+    setAccessibilityLabel("\(layoutName) 키보드 미리보기")
+    setAccessibilityValue(
+      isAvailable ? "현재 한글 자판 \(layoutName)" : "\(layoutName) 미리보기를 불러올 수 없음")
+    needsDisplay = true
+  }
+
+  override func draw(_ dirtyRect: NSRect) {
+    super.draw(dirtyRect)
+    guard isAvailable else {
+      let message = "자판 미리보기를 불러올 수 없습니다."
+      let attributes: [NSAttributedString.Key: Any] = [
+        .font: NSFont.systemFont(ofSize: 12),
+        .foregroundColor: NSColor.secondaryLabelColor,
+      ]
+      let size = message.size(withAttributes: attributes)
+      message.draw(
+        at: NSPoint(x: bounds.midX - size.width / 2, y: bounds.midY - size.height / 2),
+        withAttributes: attributes)
+      return
+    }
+    let keySize = NSSize(width: 28, height: 24)
+    let gap: CGFloat = 4
+    let top: CGFloat = 8
+    for (rowIndex, keys) in Self.rows.enumerated() {
+      let rowWidth = CGFloat(keys.count) * keySize.width + CGFloat(keys.count - 1) * gap
+      var x = max(10, (bounds.width - 412) / 2 + Self.rowInsets[rowIndex])
+      if rowIndex == 0 { x = max(10, (bounds.width - rowWidth) / 2) }
+      let y = top + CGFloat(rowIndex) * (keySize.height + gap)
+      for key in keys {
+        let frame = NSRect(origin: NSPoint(x: x, y: y), size: keySize)
+        NSColor.controlColor.setFill()
+        NSBezierPath(roundedRect: frame, xRadius: 4, yRadius: 4).fill()
+        let label = labels[key] ?? key
+        let attributes: [NSAttributedString.Key: Any] = [
+          .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
+          .foregroundColor: NSColor.labelColor,
+        ]
+        let size = label.size(withAttributes: attributes)
+        label.draw(
+          at: NSPoint(x: frame.midX - size.width / 2, y: frame.midY - size.height / 2),
+          withAttributes: attributes)
+        x += keySize.width + gap
+      }
+    }
+  }
+
+  static func layout(for inputMode: String, strict: Bool) -> (identifier: String, name: String) {
+    let suffix = inputMode.split(separator: ".").last.map(String.init) ?? "han2"
+    let values: [String: (String, String)] = [
+      "han2": ("2-full", "두벌식"), "han2classic": ("2y-full", "두벌식 옛글"),
+      "han3final": (strict ? "3fs" : "3f", "세벌식 최종"),
+      "han390": (strict ? "39s" : "39", "세벌식 390"),
+      "han3noshift": ("3s", "세벌식 순아래"), "han3classic": ("3y", "세벌식 옛글"),
+      "han3layout2": ("32", "세벌식 두벌식 배치"), "hanroman": ("ro", "세벌식 로마자"),
+      "hanahnmatae": ("ahn", "안마태"), "han3finalnoshift": ("3gs", "세벌식 최종 순아래"),
+      "han3-2011": ("3-2011", "세벌식 2011"), "han3-2012": ("3-2012", "세벌식 2012"),
+    ]
+    return values[suffix] ?? (suffix, "알 수 없는 자판")
+  }
+
+  private static func loadLabels(layoutIdentifier: String) -> [String: String]? {
+    guard let frameworks = Bundle.main.privateFrameworksURL,
+      let bundle = Bundle(url: frameworks.appendingPathComponent("Hangul.framework")),
+      let url = bundle.url(
+        forResource: "hangul-keyboard-\(layoutIdentifier)", withExtension: "xml",
+        subdirectory: "keyboards"),
+      let parser = XMLParser(contentsOf: url)
+    else { return nil }
+    let delegate = KeyboardPreviewXMLParser()
+    parser.delegate = delegate
+    parser.shouldResolveExternalEntities = false
+    guard parser.parse() else { return nil }
+    return delegate.values.reduce(into: [:]) { result, entry in
+      guard let keyScalar = UnicodeScalar(entry.key), let output = displayLabel(for: entry.value)
+      else { return }
+      result[String(keyScalar)] = output
+    }
+  }
+
+  private static func displayLabel(for scalar: UInt32) -> String? {
+    let scalar = (0xE000...0xE0FF).contains(scalar) ? scalar - 0xE000 + 0x1100 : scalar
+    let compatibility: [UInt32: String] = [
+      0x1100: "ㄱ", 0x1101: "ㄲ", 0x1102: "ㄴ", 0x1103: "ㄷ", 0x1104: "ㄸ",
+      0x1105: "ㄹ", 0x1106: "ㅁ", 0x1107: "ㅂ", 0x1108: "ㅃ", 0x1109: "ㅅ",
+      0x110A: "ㅆ", 0x110B: "ㅇ", 0x110C: "ㅈ", 0x110D: "ㅉ", 0x110E: "ㅊ",
+      0x110F: "ㅋ", 0x1110: "ㅌ", 0x1111: "ㅍ", 0x1112: "ㅎ",
+      0x1161: "ㅏ", 0x1162: "ㅐ", 0x1163: "ㅑ", 0x1164: "ㅒ", 0x1165: "ㅓ",
+      0x1166: "ㅔ", 0x1167: "ㅕ", 0x1168: "ㅖ", 0x1169: "ㅗ", 0x116A: "ㅘ",
+      0x116B: "ㅙ", 0x116C: "ㅚ", 0x116D: "ㅛ", 0x116E: "ㅜ", 0x116F: "ㅝ",
+      0x1170: "ㅞ", 0x1171: "ㅟ", 0x1172: "ㅠ", 0x1173: "ㅡ", 0x1174: "ㅢ",
+      0x1175: "ㅣ",
+      0x11A8: "ㄱ", 0x11A9: "ㄲ", 0x11AA: "ㄳ", 0x11AB: "ㄴ", 0x11AC: "ㄵ",
+      0x11AD: "ㄶ", 0x11AE: "ㄷ", 0x11AF: "ㄹ", 0x11B0: "ㄺ", 0x11B1: "ㄻ",
+      0x11B2: "ㄼ", 0x11B3: "ㄽ", 0x11B4: "ㄾ", 0x11B5: "ㄿ", 0x11B6: "ㅀ",
+      0x11B7: "ㅁ", 0x11B8: "ㅂ", 0x11B9: "ㅄ", 0x11BA: "ㅅ", 0x11BB: "ㅆ",
+      0x11BC: "ㅇ", 0x11BD: "ㅈ", 0x11BE: "ㅊ", 0x11BF: "ㅋ", 0x11C0: "ㅌ",
+      0x11C1: "ㅍ", 0x11C2: "ㅎ",
+    ]
+    if let label = compatibility[scalar] { return label }
+    guard let unicodeScalar = UnicodeScalar(scalar) else { return nil }
+    return String(unicodeScalar)
+  }
+}
+
+private final class KeyboardPreviewXMLParser: NSObject, XMLParserDelegate {
+  var values: [UInt32: UInt32] = [:]
+  private var inPrimaryMap = false
+
+  func parser(
+    _: XMLParser, didStartElement elementName: String, namespaceURI _: String?,
+    qualifiedName _: String?, attributes: [String: String]
+  ) {
+    if elementName == "map" { inPrimaryMap = attributes["id"] == "0" }
+    guard inPrimaryMap, elementName == "item",
+      let key = Self.scalar(attributes["key"]), let value = Self.scalar(attributes["value"])
+    else { return }
+    values[key] = value
+  }
+
+  func parser(
+    _: XMLParser, didEndElement elementName: String, namespaceURI _: String?,
+    qualifiedName _: String?
+  ) {
+    if elementName == "map" { inPrimaryMap = false }
+  }
+
+  private static func scalar(_ value: String?) -> UInt32? {
+    guard let value else { return nil }
+    return value.lowercased().hasPrefix("0x")
+      ? UInt32(value.dropFirst(2), radix: 16) : UInt32(value)
+  }
+}
 
 private final class PreferencesDocumentView: NSView {
   override var isFlipped: Bool { true }
@@ -68,6 +307,8 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
   private var hangulShiftBackQuoteOutputCharacterField: NSTextField!
   private var hangulSpecialCharacterHelp: NSTextField!
   private var editedSpecialCharacterFields: Set<ObjectIdentifier> = []
+  private var escapeKeyApplicationMenu: SystemSettingsPopUpButton!
+  private var keyboardPreview: KeyboardPreviewView?
   /// 완성되지 않은 낱자 자동 교정 (모아치기).
   @IBOutlet private var hangulAutoReorderButton: NSButton!
   /// 두벌식 초성 조합 중에도 종성 결합 허용 (MS윈도 호환).
@@ -177,23 +418,25 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
     setupShortcutViewValueChangeEvents()
 
     updateNotificationButton.state = isOn(configuration.updateNotification)
-    if Bundle.main.isExperimental {
+    let identity = InputMethodIdentity.current
+    if !identity.supportsUpdates {
+      updateNotificationButton.state = .off
+      updateNotificationButton.isEnabled = false
+      updateNotificationExperimentalButton.state = .off
+      updateNotificationExperimentalButton.isEnabled = false
+    } else if !identity.supportsExperimentalUpdates {
+      updateNotificationButton.isEnabled = true
+      updateNotificationExperimentalButton.state = .off
+      updateNotificationExperimentalButton.isEnabled = false
+    } else if Bundle.main.isExperimental {
       updateNotificationExperimentalButton.state = .on
       updateNotificationExperimentalButton.isEnabled = false
     } else {
       updateNotificationExperimentalButton.state = isOn(
         configuration.updateNotificationExperimental)
     }
-    if InputMethodIdentity.current.usesForkServices {
-      updateNotificationButton.state = .off
-      updateNotificationButton.isEnabled = false
-      updateNotificationExperimentalButton.state = .off
-      updateNotificationExperimentalButton.isEnabled = false
-    }
 
-    #if DEBUG
-      debugButton.isHidden = false
-    #endif
+    debugButton.isHidden = true
     buildSettingsForm()
   }
 
@@ -225,7 +468,7 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
       sectionPicker.isHidden = true
     #endif
 
-    let layoutMenu = NSPopUpButton(frame: .zero, pullsDown: false)
+    let layoutMenu = SystemSettingsPopUpButton(frame: .zero, pullsDown: false)
     layoutMenu.addItems(withTitles: inputSources.map(\.localizedName))
     if let index = inputSources.firstIndex(where: {
       $0.identifier == configuration.overridingKeyboardName
@@ -242,8 +485,13 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
     hangulShiftBackQuoteOutputCharacterField = specialCharacterField(
       value: configuration.hangulShiftBackQuoteOutputCharacter, label: "Shift+` 키 문자")
     hangulSpecialCharacterHelp = helperText(Self.hangulSpecialCharacterHelpText)
+    escapeKeyApplicationMenu = SystemSettingsPopUpButton(frame: .zero, pullsDown: false)
+    escapeKeyApplicationMenu.target = self
+    escapeKeyApplicationMenu.action = #selector(escapeKeyApplicationMenuChanged(_:))
+    styleMenu(escapeKeyApplicationMenu, label: "Esc로 로마자 전환")
+    refreshEscapeKeyApplicationMenu()
 
-    let inputSections: [NSView] = [
+    var inputSections: [NSView] = [
       section(
         "한글 조합",
         rows: [
@@ -269,6 +517,20 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
           settingRow("Option 키 동작", control: optionKeyBehaviorButton),
         ], explanation: helperText("선택한 레이아웃은 로마자 입력과 한글 입력 중 로마자 단축키에 함께 적용됩니다.")),
     ]
+    #if !USE_PREFPANE
+      let previewLayout = KeyboardPreviewView.layout(
+        for: configuration.lastHangulInputMode,
+        strict: configuration.hangulForceStrictCombinationRule)
+      let preview = KeyboardPreviewView(
+        layoutIdentifier: previewLayout.identifier, layoutName: previewLayout.name)
+      keyboardPreview = preview
+      preview.translatesAutoresizingMaskIntoConstraints = false
+      preview.heightAnchor.constraint(equalToConstant: 120).isActive = true
+      inputSections.append(
+        section(
+          "현재 한글 자판", rows: [preview],
+          explanation: helperText("현재 선택한 한글 입력 소스의 실제 자판 매핑입니다.")))
+    #endif
     let inputPage = page(inputSections)
 
     let shortcutsPage = page([
@@ -291,10 +553,10 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
         rows: [
           settingRow("오른쪽 전환 키", control: rightToggleKeyButton),
           settingRow(
-            "입력 모니터링",
+            "키 감지 권한",
             control: settingsButton(
-              for: "입력 모니터링", action: #selector(openInputMonitoringPreference(sender:)))),
-        ], explanation: helperText("오른쪽 키로 전환하려면 입력 모니터링 허용이 필요합니다.")),
+              for: "키 감지 권한", action: #selector(openInputMonitoringPreference(sender:)))),
+        ], explanation: helperText("오른쪽 키 전환과 실험 동시입력에만 필요합니다. 일반 입력에는 필요하지 않습니다.")),
       section(
         "시스템 단축키",
         rows: [
@@ -318,22 +580,11 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
         ], explanation: helperText("특정 앱에서 조합이 어긋날 때만 켜세요. 종성 결합은 Windows 방식, 조합 상태 유지는 JDK 앱용입니다.")
       ),
       section(
-        "편집",
+        "앱별 동작",
         rows: [
-          settingRow(
-            "Esc로 로마자 전환",
-            control: settingSwitch(romanModeByEscapeKeyButton, label: "Esc로 로마자 전환"))
-        ]),
-      section(
-        "업데이트",
-        rows: [
-          settingRow("업데이트 알림", control: settingSwitch(updateNotificationButton, label: "업데이트 알림")),
-          settingRow(
-            "실험 버전 알림",
-            control: settingSwitch(updateNotificationExperimentalButton, label: "실험 버전 알림")),
-        ],
-        explanation: InputMethodIdentity.current.usesForkServices
-          ? helperText("이 제품에서는 구름의 자동 업데이트 알림을 사용하지 않습니다.") : nil),
+          settingRow("Esc로 로마자 전환", control: escapeKeyApplicationMenu)
+        ], explanation: helperText("선택한 Vim·터미널·코드 편집기에서만 Esc 또는 Control+[로 한글 조합을 끝내고 로마자로 전환합니다.")
+      ),
     ]
     #if !USE_PREFPANE
       if InputMethodIdentity.current.supportsPhysicalChording {
@@ -353,10 +604,10 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
         physicalChordStatus = status
         advancedSections.append(
           section(
-            "실험 · 물리적 키 묶기",
+            "실험 기능 · 물리적 동시입력",
             rows: [
-              settingRow("물리적 키 묶기", control: toggle),
-              settingRow("키 해제 관찰 권한", control: permission),
+              settingRow("동시에 누른 키 묶기", control: toggle),
+              settingRow("키 감지 권한", control: permission),
             ], explanation: status))
         NotificationCenter.default.removeObserver(
           self, name: PhysicalKeyEventSource.statusDidChange, object: nil)
@@ -366,17 +617,28 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
         refreshPhysicalChordControls()
       }
     #endif
-    #if DEBUG
-      debugButton.title = "종료…"
-      debugButton.isBordered = true
-      debugButton.controlSize = .regular
-      debugButton.setAccessibilityLabel("오류 처리 검증을 위해 앱 종료")
-      debugButton.isHidden = false
-      advancedSections.append(
-        section(
-          "개발자", rows: [settingRow("오류 처리 검증", control: debugButton)],
-          explanation: helperText("오류 처리 검증을 위해 앱을 즉시 종료합니다.")))
-    #endif
+    let identity = InputMethodIdentity.current
+    var updateRows = [
+      settingRow(
+        "업데이트 알림", control: settingSwitch(updateNotificationButton, label: "업데이트 알림"))
+    ]
+    if identity.supportsExperimentalUpdates {
+      updateRows.append(
+        settingRow(
+          "실험 버전 알림",
+          control: settingSwitch(updateNotificationExperimentalButton, label: "실험 버전 알림")))
+    }
+    let updateExplanation: NSTextField? = {
+      if identity.isBaram {
+        return helperText("baram.sionyuel.com에서 바람 입력기의 새 정식 버전을 확인합니다.")
+      }
+      if !identity.supportsUpdates {
+        return helperText("이 제품에는 별도 업데이트 채널이 없습니다.")
+      }
+      return nil
+    }()
+    advancedSections.append(
+      section("업데이트", rows: updateRows, explanation: updateExplanation))
     let advancedPage = page(advancedSections)
     preferencePages = [inputPage, shortcutsPage, advancedPage]
     let pageContainer = NSView()
@@ -414,6 +676,11 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
   #if !USE_PREFPANE
     override func viewWillAppear() {
       super.viewWillAppear()
+      let previewLayout = KeyboardPreviewView.layout(
+        for: configuration.lastHangulInputMode,
+        strict: configuration.hangulForceStrictCombinationRule)
+      keyboardPreview?.reload(
+        layoutIdentifier: previewLayout.identifier, layoutName: previewLayout.name)
       if InputMethodIdentity.current.supportsPhysicalChording { refreshPhysicalChordControls() }
     }
 
@@ -588,11 +855,91 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
   }
 
   private func styleMenu(_ menu: NSPopUpButton, label: String) {
-    menu.isBordered = false
-    menu.controlSize = .small
-    menu.alignment = .right
+    if let systemMenu = menu as? SystemSettingsPopUpButton {
+      systemMenu.applySystemSettingsStyle()
+    } else {
+      menu.isBordered = false
+      menu.controlSize = .small
+      menu.alignment = .right
+    }
     menu.cell?.lineBreakMode = .byTruncatingMiddle
     menu.setAccessibilityLabel(label)
+  }
+
+  private func refreshEscapeKeyApplicationMenu() {
+    let applications = configuration.romanModeByEscapeKeyApplications
+    let summary: String
+    if configuration.romanModeByEscapeKey {
+      summary = "모든 앱 · 이전 설정"
+    } else if applications.isEmpty {
+      summary = "사용 안 함"
+    } else if applications.count == 1 {
+      summary = applications.values.first ?? "1개 앱"
+    } else {
+      summary = "\(applications.count)개 앱"
+    }
+
+    escapeKeyApplicationMenu.removeAllItems()
+    escapeKeyApplicationMenu.addItem(withTitle: summary)
+    escapeKeyApplicationMenu.lastItem?.isEnabled = false
+    if !applications.isEmpty {
+      escapeKeyApplicationMenu.menu?.addItem(.separator())
+      for name in applications.values.sorted() {
+        let item = NSMenuItem(title: name, action: nil, keyEquivalent: "")
+        item.state = .on
+        item.isEnabled = false
+        escapeKeyApplicationMenu.menu?.addItem(item)
+      }
+    }
+    escapeKeyApplicationMenu.menu?.addItem(.separator())
+    let choose = NSMenuItem(title: "앱 선택…", action: nil, keyEquivalent: "")
+    choose.representedObject = "choose"
+    escapeKeyApplicationMenu.menu?.addItem(choose)
+    if configuration.romanModeByEscapeKey || !applications.isEmpty {
+      let clear = NSMenuItem(title: "설정 지우기", action: nil, keyEquivalent: "")
+      clear.representedObject = "clear"
+      escapeKeyApplicationMenu.menu?.addItem(clear)
+    }
+    escapeKeyApplicationMenu.selectItem(at: 0)
+  }
+
+  @objc private func escapeKeyApplicationMenuChanged(_ sender: NSPopUpButton) {
+    defer { refreshEscapeKeyApplicationMenu() }
+    switch sender.selectedItem?.representedObject as? String {
+    case "choose":
+      chooseEscapeKeyApplications()
+    case "clear":
+      configuration.romanModeByEscapeKey = false
+      configuration.romanModeByEscapeKeyApplications = [:]
+    default:
+      break
+    }
+  }
+
+  private func chooseEscapeKeyApplications() {
+    let panel = NSOpenPanel()
+    panel.title = "Esc로 로마자 전환할 앱 선택"
+    panel.message = "Vim, 터미널, 코드 편집기처럼 Esc 뒤에 로마자 입력이 필요한 앱을 선택하세요."
+    panel.prompt = "선택"
+    panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
+    panel.allowedContentTypes = [.applicationBundle]
+    panel.canChooseFiles = true
+    panel.canChooseDirectories = false
+    panel.allowsMultipleSelection = true
+
+    guard panel.runModal() == .OK else { return }
+    let applications = panel.urls.reduce(into: [String: String]()) { result, url in
+      guard let bundle = Bundle(url: url), let identifier = bundle.bundleIdentifier else { return }
+      let name =
+        ["CFBundleDisplayName", "CFBundleName"]
+        .compactMap { bundle.object(forInfoDictionaryKey: $0) as? String }
+        .first { !$0.isEmpty }
+        ?? url.deletingPathExtension().lastPathComponent
+      result[identifier] = name
+    }
+    guard !applications.isEmpty else { return }
+    configuration.romanModeByEscapeKey = false
+    configuration.romanModeByEscapeKeyApplications = applications
   }
 
   private func specialCharacterField(value: String, label: String) -> NSTextField {
@@ -860,7 +1207,7 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
 
   @IBAction private func updateNotificationValueChanged(_ sender: NSButton) {
     configuration.updateNotification = sender.state == .on
-    if !Bundle.main.isExperimental {
+    if InputMethodIdentity.current.supportsExperimentalUpdates, !Bundle.main.isExperimental {
       updateNotificationExperimentalButton.isEnabled = sender.state == .on
     }
     backgroundQueue.async {

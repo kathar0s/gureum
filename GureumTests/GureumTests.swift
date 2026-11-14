@@ -97,6 +97,27 @@ class GureumTests: XCTestCase {
       lastNotification.userInfo as! [String: String])
   }
 
+  func testUpdateVersionComparisonNeverOffersADowngrade() {
+    XCTAssertTrue(
+      UpdateManager.shouldOffer(
+        updateVersion: "2.0.0", currentVersion: "1.13.2-73-g514508c-Debug"))
+    XCTAssertTrue(
+      UpdateManager.shouldOffer(updateVersion: "1.14.0", currentVersion: "1.13.2"))
+    XCTAssertFalse(
+      UpdateManager.shouldOffer(updateVersion: "1.13.2", currentVersion: "1.13.2-Debug"))
+    XCTAssertFalse(
+      UpdateManager.shouldOffer(updateVersion: "1.0.0", currentVersion: "1.13.2"))
+    XCTAssertFalse(
+      UpdateManager.shouldOffer(updateVersion: "invalid", currentVersion: "1.13.2"))
+    XCTAssertTrue(UpdateManager.shouldOffer(updateVersion: "2.0.0", currentVersion: nil))
+    XCTAssertTrue(
+      UpdateManager.shouldOffer(updateVersion: "1.14.0-rc2", currentVersion: "1.14.0-rc1"))
+    XCTAssertTrue(
+      UpdateManager.shouldOffer(updateVersion: "1.14.0", currentVersion: "1.14.0-rc2"))
+    XCTAssertFalse(
+      UpdateManager.shouldOffer(updateVersion: "1.14.0-rc1", currentVersion: "1.14.0"))
+  }
+
   func testLayoutChange() {
     Configuration.shared.inputModeExchangeKey = Configuration.Shortcut(.space, .shift)
     for app in apps {
@@ -657,6 +678,42 @@ class GureumTests: XCTestCase {
     }
   }
 
+  func testSequentialSebeolsikFinalReordersCompoundVowelWhenReorderIsEnabled() {
+    let previousAutoReorder = Configuration.shared.hangulAutoReorder
+    Configuration.shared.hangulAutoReorder = true
+    defer { Configuration.shared.hangulAutoReorder = previousAutoReorder }
+
+    for app in apps {
+      app.controller.setValue(
+        GureumInputSource.han3Final.rawValue, forTag: kTextServiceInputModePropertyTag,
+        client: app.client)
+
+      // 3F: k = ㄱ, f = ㅏ, v = ㅗ. A chord may arrive in this order,
+      // but ㅗ + ㅏ must be composed as ㅘ.
+      app.inputKeys("kfv")
+
+      XCTAssertEqual("과", app.client.string)
+      XCTAssertEqual("과", app.client.markedString())
+    }
+  }
+
+  func testSequentialSebeolsikFinalKeepsReversedCompoundVowelWhenReorderIsDisabled() {
+    let previousAutoReorder = Configuration.shared.hangulAutoReorder
+    Configuration.shared.hangulAutoReorder = false
+    defer { Configuration.shared.hangulAutoReorder = previousAutoReorder }
+
+    for app in apps {
+      app.controller.setValue(
+        GureumInputSource.han3Final.rawValue, forTag: kTextServiceInputModePropertyTag,
+        client: app.client)
+
+      app.inputKeys("kfv")
+
+      XCTAssertEqual("가ㅗ", app.client.string)
+      XCTAssertEqual("ㅗ", app.client.markedString())
+    }
+  }
+
   func test3final() {
     for app in apps {
       app.client.string = ""
@@ -904,6 +961,37 @@ class GureumTests: XCTestCase {
     }
   }
 
+  func testViModeEscapeCanBeScopedToTheCurrentApplication() throws {
+    let identifier = try XCTUnwrap(Bundle.main.bundleIdentifier)
+    Configuration.shared.romanModeByEscapeKey = false
+    Configuration.shared.romanModeByEscapeKeyApplications = [identifier: "Tests"]
+
+    for app in apps {
+      app.controller.setValue(
+        GureumInputSource.han3FinalNoShift.rawValue, forTag: kTextServiceInputModePropertyTag,
+        client: app.client)
+
+      _ = app.inputKey(.escape)
+
+      XCTAssertTrue(app.controller.receiver.composer.inputMode.hasSuffix("qwerty"))
+    }
+  }
+
+  func testViModeEscapeIgnoresApplicationsOutsideTheRule() {
+    Configuration.shared.romanModeByEscapeKey = false
+    Configuration.shared.romanModeByEscapeKeyApplications = ["com.example.Editor": "Editor"]
+
+    for app in apps {
+      app.controller.setValue(
+        GureumInputSource.han3FinalNoShift.rawValue, forTag: kTextServiceInputModePropertyTag,
+        client: app.client)
+
+      _ = app.inputKey(.escape)
+
+      XCTAssertTrue(app.controller.receiver.composer.inputMode.hasSuffix("han3finalnoshift"))
+    }
+  }
+
   func testViModeCtrlAndLeftBracket() {
     XCTAssertFalse(Configuration.shared.romanModeByEscapeKey)
     Configuration.shared.romanModeByEscapeKey = true
@@ -1085,12 +1173,22 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
     let navigation = try XCTUnwrap(window.toolbar?.items.first as? NSToolbarItemGroup)
     XCTAssertEqual(navigation.subitems.count, 3)
     let popups = views.compactMap { $0 as? NSPopUpButton }
-    XCTAssertEqual(popups.count, 3)
+    XCTAssertEqual(popups.count, 4)
     XCTAssertTrue(popups.allSatisfy { $0.controlSize == .small })
+    XCTAssertTrue(popups.allSatisfy { $0 is SystemSettingsPopUpButton })
     let option = try XCTUnwrap(popups.first { $0.accessibilityLabel() == "Option 키 동작" })
     XCTAssertFalse(option.pullsDown)
     XCTAssertFalse(option.isBordered)
     for popup in popups {
+      XCTAssertTrue(popup.cell is SystemSettingsPopUpButtonCell)
+      XCTAssertEqual((popup.cell as? NSPopUpButtonCell)?.arrowPosition, .noArrow)
+      XCTAssertGreaterThanOrEqual(popup.intrinsicContentSize.height, 20)
+      XCTAssertGreaterThanOrEqual(popup.intrinsicContentSize.width, 44)
+      let nativeTitleRect = try XCTUnwrap(
+        popup.cell?.titleRect(
+          forBounds: NSRect(
+            origin: .zero, size: popup.intrinsicContentSize)))
+      XCTAssertGreaterThanOrEqual(nativeTitleRect.width - 24, popup.attributedTitle.size().width)
       XCTAssertFalse(
         popup.constraints.contains {
           ($0.firstItem as? NSView) === popup
@@ -1116,6 +1214,40 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
       })
   }
 
+  func testKeyboardPreviewUsesTheBundledThreeSetFinalMapping() {
+    let preview = KeyboardPreviewView(layoutIdentifier: "3f", layoutName: "세벌식 최종")
+
+    XCTAssertEqual(preview.labels["k"], "ㄱ")
+    XCTAssertEqual(preview.labels["f"], "ㅏ")
+    XCTAssertEqual(preview.labels["v"], "ㅗ")
+    XCTAssertTrue(preview.isAvailable)
+    XCTAssertEqual(preview.intrinsicContentSize, NSSize(width: 432, height: 120))
+    XCTAssertEqual(preview.accessibilityLabel(), "세벌식 최종 키보드 미리보기")
+  }
+
+  func testKeyboardPreviewNormalizesVirtualJamoAndReportsUnavailableLayouts() {
+    let strict = KeyboardPreviewView(layoutIdentifier: "3fs", layoutName: "세벌식 최종 정석")
+    XCTAssertTrue(strict.isAvailable)
+    XCTAssertEqual(strict.labels["/"], "ㅗ")
+    XCTAssertEqual(strict.labels["9"], "ㅜ")
+
+    let missing = KeyboardPreviewView(layoutIdentifier: "missing", layoutName: "알 수 없는 자판")
+    XCTAssertFalse(missing.isAvailable)
+    XCTAssertTrue(missing.labels.isEmpty)
+    XCTAssertEqual(missing.accessibilityValue() as? String, "알 수 없는 자판 미리보기를 불러올 수 없음")
+  }
+
+  func testKeyboardPreviewCanReloadAfterTheInputSourceChanges() {
+    let preview = KeyboardPreviewView(layoutIdentifier: "2-full", layoutName: "두벌식")
+    XCTAssertEqual(preview.labels["r"], "ㄱ")
+
+    preview.reload(layoutIdentifier: "3f", layoutName: "세벌식 최종")
+
+    XCTAssertEqual(preview.layoutName, "세벌식 최종")
+    XCTAssertEqual(preview.labels["k"], "ㄱ")
+    XCTAssertEqual(preview.accessibilityLabel(), "세벌식 최종 키보드 미리보기")
+  }
+
   func testEveryPageKeyLoopContainsOnlyItsVisibleControlsInReadingOrder() throws {
     let (window, child) = try form()
     var labels = [
@@ -1123,12 +1255,9 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
         "모아치기", "세벌식 정석 조합", "` 키 문자", "Shift+` 키 문자", "키보드 레이아웃",
         "Option 키 동작",
       ],
-      ["한글 ↔ 로마자", "한자 및 이모지", "로마자로 전환", "한글로 전환", "오른쪽 전환 키", "입력 모니터링 열기", "키보드 열기"],
+      ["한글 ↔ 로마자", "한자 및 이모지", "로마자로 전환", "한글로 전환", "오른쪽 전환 키", "키 감지 권한 열기", "키보드 열기"],
       ["두벌식 종성 결합", "조합 상태 유지", "Esc로 로마자 전환", "업데이트 알림", "실험 버전 알림"],
     ]
-    #if DEBUG
-      labels[2].append("오류 처리 검증을 위해 앱 종료")
-    #endif
     for index in 0..<3 {
       select(index, in: child)
       child.viewDidAppear()
@@ -1206,7 +1335,7 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
     let views = descendants(child.view)
     let buttons = views.compactMap { $0 as? NSButton }
     XCTAssertFalse(buttons.contains { $0.bezelStyle == .disclosure })
-    for label in ["입력 모니터링 열기", "키보드 열기"] {
+    for label in ["키 감지 권한 열기", "키보드 열기"] {
       let button = try XCTUnwrap(buttons.first { $0.accessibilityLabel() == label })
       XCTAssertFalse(button.isHiddenOrHasHiddenAncestor)
       XCTAssertEqual(button.controlSize, .small)
@@ -1226,19 +1355,17 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
       labels.contains(
         "모아치기는 순서가 바뀐 낱자를 자동으로 조합합니다. 정석 조합은 세벌식 최종·390에서 이중모음과 겹받침을 해당 자판 규칙으로 제한합니다."))
     if !InputMethodIdentity.current.supportsPhysicalChording {
-      XCTAssertFalse(labels.contains("실험 · 물리적 키 묶기"))
+      XCTAssertFalse(labels.contains("실험 기능 · 물리적 동시입력"))
     }
   }
 
-  func testDebugDeveloperGroupIsPlainAndHasNoDisclosure() throws {
+  func testInternalCrashVerificationIsNotShownInSettings() throws {
     let (_, child) = try form()
     select(2, in: child)
     let views = descendants(child.view).filter { !$0.isHiddenOrHasHiddenAncestor }
-    #if DEBUG
-      XCTAssertTrue(views.compactMap { $0 as? NSTextField }.contains { $0.stringValue == "개발자" })
-      let button = try XCTUnwrap(views.compactMap { $0 as? NSButton }.first { $0.title == "종료…" })
-      XCTAssertNotEqual(button.bezelStyle, .disclosure)
-    #endif
+    XCTAssertFalse(
+      views.compactMap { $0 as? NSTextField }.contains { $0.stringValue == "개발자" })
+    XCTAssertFalse(views.compactMap { $0 as? NSButton }.contains { $0.title == "종료…" })
   }
 
   func testShortcutLocalizationIsLimitedToThePreferenceRecorderSubclass() throws {
@@ -1297,6 +1424,7 @@ class GureumMenuTests: XCTestCase {
     XCTAssertEqual(capabilities.sourceURL?.absoluteString, "http://ssi.gureum.io")
     XCTAssertEqual(capabilities.donationURL?.absoluteString, "http://donation.gureum.io")
     XCTAssertTrue(capabilities.supportsUpdates)
+    XCTAssertTrue(capabilities.supportsExperimentalUpdates)
   }
 
   func testLabCapabilitiesExposeOnlyForkIssuesAndSource() throws {
@@ -1309,6 +1437,7 @@ class GureumMenuTests: XCTestCase {
       capabilities.issuesURL?.absoluteString, "https://github.com/kathar0s/gureum/issues")
     XCTAssertEqual(capabilities.sourceURL?.absoluteString, "https://github.com/kathar0s/gureum")
     XCTAssertFalse(capabilities.supportsUpdates)
+    XCTAssertFalse(capabilities.supportsExperimentalUpdates)
   }
 
   func testBaramCapabilitiesUseForkServicesAndBundleDisplayName() throws {
@@ -1316,13 +1445,28 @@ class GureumMenuTests: XCTestCase {
       productKind: "baram", displayName: "바람 입력기", bundleName: "Baram")
 
     XCTAssertEqual(capabilities.displayName, "바람 입력기")
-    XCTAssertNil(capabilities.websiteURL)
+    XCTAssertEqual(capabilities.websiteURL?.absoluteString, "https://baram.sionyuel.com")
     XCTAssertNil(capabilities.helpURL)
     XCTAssertNil(capabilities.donationURL)
     XCTAssertEqual(
-      capabilities.issuesURL?.absoluteString, "https://github.com/kathar0s/gureum/issues")
-    XCTAssertEqual(capabilities.sourceURL?.absoluteString, "https://github.com/kathar0s/gureum")
-    XCTAssertFalse(capabilities.supportsUpdates)
+      capabilities.issuesURL?.absoluteString, "https://github.com/sionyuel/baram/issues")
+    XCTAssertEqual(capabilities.sourceURL?.absoluteString, "https://github.com/sionyuel/baram")
+    XCTAssertTrue(capabilities.supportsUpdates)
+    XCTAssertFalse(capabilities.supportsExperimentalUpdates)
+  }
+
+  func testBaramMenuOffersStableUpdatesWithoutDeveloperChannel() throws {
+    let menu = GureumMenuBuilder(
+      capabilities: try capabilities(
+        productKind: "baram", displayName: "바람 입력기", bundleName: "Baram"),
+      includeDeveloperTools: true
+    ).makeMenu()
+
+    XCTAssertEqual(
+      identifiers(menu), ["preferences", "update", "separator", "support", "separator", "about"])
+    let allIDs = descendants(menu).compactMap { $0.identifier?.rawValue }
+    XCTAssertFalse(allIDs.contains("developer"))
+    XCTAssertFalse(allIDs.contains("experimental-update"))
   }
 
   func testUpstreamMenuHasCompactTopLevelOrderAndGroupedSupportItems() throws {
@@ -1505,6 +1649,12 @@ class InputMethodIdentityTests: XCTestCase {
     XCTAssertTrue(identity.supportsPhysicalChording)
     XCTAssertFalse(identity.recordsChordDiagnostics)
     XCTAssertFalse(identity.supportsUpstreamUpdates)
+    XCTAssertTrue(identity.supportsUpdates)
+    XCTAssertFalse(identity.supportsExperimentalUpdates)
+    XCTAssertEqual(
+      UpdateManager.feedURL(mode: .stable, identity: identity)?.absoluteString,
+      "https://baram.sionyuel.com/version.json")
+    XCTAssertNil(UpdateManager.feedURL(mode: .experimental, identity: identity))
   }
 
   func testBaramInfoPlistUsesLayoutSpecificInputSourceIcons() throws {
@@ -1517,10 +1667,10 @@ class InputMethodIdentityTests: XCTestCase {
     XCTAssertEqual(plist["CFBundleSignature"] as? String, "Barm")
     XCTAssertEqual(
       plist["NSHumanReadableCopyright"] as? String,
-      "Copyright © 2026 Sionyuel. Based on Gureum © 2011-2022 Jeong YunWon and contributors.")
+      "Copyright © 2026 Sionyuel.\nBased on Gureum © 2011-2022 Jeong YunWon and contributors.")
     XCTAssertEqual(
       plist["CFBundleGetInfoString"] as? String,
-      "${VERSION}, Copyright © 2026 Sionyuel; based on Gureum © 2011-2022 Jeong YunWon and contributors"
+      "${VERSION}, Copyright © 2026 Sionyuel\nBased on Gureum © 2011-2022 Jeong YunWon and contributors"
     )
     let upstreamData = try Data(contentsOf: root.appendingPathComponent("OSX/Info.plist"))
     let upstreamPlist = try XCTUnwrap(

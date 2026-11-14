@@ -270,7 +270,7 @@ extension GureumComposer {
   func filterCommand(
     keyCode: KeyCode,
     modifiers flags: NSEvent.ModifierFlags,
-    client _: Any
+    client: Any
   ) -> InputEvent? {
     let configuration = Configuration.shared
     let inputModifier =
@@ -324,7 +324,8 @@ extension GureumComposer {
 
     if delegate is HangulComposer {
       // Vi-mode: esc로 로마자 키보드로 전환
-      if Configuration.shared.romanModeByEscapeKey {
+      let bundleIdentifier = (client as? IMKTextInput)?.bundleIdentifier()
+      if Configuration.shared.usesRomanModeByEscapeKey(for: bundleIdentifier) {
         if keyCode == .escape || inputKey == (.ansiLeftBracket, .control) {
           return .changeLayout(.roman, false)
         }

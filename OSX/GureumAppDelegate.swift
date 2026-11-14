@@ -70,7 +70,7 @@ class GureumAppDelegate: NSObject, NSApplicationDelegate, GureumApplicationDeleg
       // Fabric.with([Crashlytics.self, Answers.self])
     #endif
 
-    if InputMethodIdentity.current.supportsUpstreamUpdates {
+    if InputMethodIdentity.current.supportsUpdates {
       UpdateManager.shared.notifyUpdateIfNeeded()
     }
 
