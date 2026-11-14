@@ -246,6 +246,25 @@ final class HangulComposer: NSObject, Composer {
       return InputResult(processed: false, action: .commit)
     }
 
+    if keyCode == .ansiGrave {
+      let relevantModifiers = flags.intersection([.shift, .control, .option, .command, .function])
+      let replacement: String?
+      if relevantModifiers.isEmpty {
+        replacement =
+          configuration.hasExplicitHangulBackQuoteOutputCharacter
+          ? configuration.hangulBackQuoteOutputCharacter : nil
+      } else if relevantModifiers == .shift {
+        replacement = configuration.hangulShiftBackQuoteOutputCharacter
+      } else {
+        replacement = nil
+      }
+      if let replacement, !replacement.isEmpty {
+        cancelComposition()
+        _commitString.append(replacement)
+        return .processed
+      }
+    }
+
     var string = string ?? ""
     // 한글 입력에서 캡스락 무시
     if flags.contains(.shift) {
@@ -291,7 +310,8 @@ final class HangulComposer: NSObject, Composer {
       }
     }
 
-    if configuration.hangulWonCurrencySymbolForBackQuote, keyCode == .ansiGrave,
+    if !configuration.hasExplicitHangulBackQuoteOutputCharacter,
+      configuration.hangulWonCurrencySymbolForBackQuote, keyCode == .ansiGrave,
       flags.isSubset(of: .capsLock)
     {
       if !handled {

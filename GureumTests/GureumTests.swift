@@ -449,6 +449,9 @@ class GureumTests: XCTestCase {
   }
 
   func testBackQuoteHan3Final() {
+    Configuration.shared.removeObject(forKey: ConfigurationName.hangulBackQuoteOutputCharacter)
+    Configuration.shared.hangulWonCurrencySymbolForBackQuote = true
+    Configuration.shared.hangulShiftBackQuoteOutputCharacter = ""
     for app in apps {
       app.client.string = ""
       app.controller.setValue(
@@ -457,12 +460,15 @@ class GureumTests: XCTestCase {
 
       app.inputText("`", key: .ansiGrave)
       XCTAssertEqual("*", app.client.string, "buffer: \(app.client.string) app: \(app)")
+
+      app.inputKey(.ansiGrave, modifiers: .shift)
+      XCTAssertEqual("*※", app.client.string, "buffer: \(app.client.string) app: \(app)")
     }
   }
 
   func testBackQuoteHan3Classic() {
     // 세벌식 옛글에서 역따옴표는 종성으로 매핑되어 있어 커밋 없이 조합만 진행된다.
-    Configuration.shared.hangulWonCurrencySymbolForBackQuote = true
+    Configuration.shared.hangulBackQuoteOutputCharacter = ""
     for app in apps {
       app.client.string = ""
       app.controller.setValue(
@@ -474,6 +480,56 @@ class GureumTests: XCTestCase {
       XCTAssertEqual(
         "\u{11F9}", app.client.markedString(), "buffer: \(app.client.string) app: \(app)")
     }
+  }
+
+  func testCustomBackQuoteCharactersOverrideHan3Final() {
+    Configuration.shared.hangulBackQuoteOutputCharacter = "·"
+    Configuration.shared.hangulShiftBackQuoteOutputCharacter = "@"
+    for app in apps {
+      app.client.string = ""
+      app.controller.setValue(
+        GureumInputSource.han3Final.rawValue, forTag: kTextServiceInputModePropertyTag,
+        client: app.client)
+
+      app.inputKey(.ansiGrave)
+      app.inputKey(.ansiGrave, modifiers: .shift)
+      XCTAssertEqual("·@", app.client.string, "buffer: \(app.client.string) app: \(app)")
+      XCTAssertEqual("", app.client.markedString())
+    }
+  }
+
+  func testCustomBackQuoteCommitsCompositionInDeferredMode() {
+    Configuration.shared.hangulBackQuoteOutputCharacter = "…"
+    Configuration.shared.hangulDeferredSymbolCommit = true
+    for app in apps {
+      app.client.string = ""
+      app.controller.setValue(
+        GureumInputSource.han2.rawValue, forTag: kTextServiceInputModePropertyTag,
+        client: app.client)
+
+      app.inputKey(.ansiR)
+      app.inputKey(.ansiK)
+      app.inputKey(.ansiGrave)
+      XCTAssertEqual("가…", app.client.string, "buffer: \(app.client.string) app: \(app)")
+      XCTAssertEqual("", app.client.markedString())
+    }
+  }
+
+  func testCustomBackQuoteAcceptsOneGraphemeAndPreservesLegacyFallback() {
+    Configuration.shared.removeObject(forKey: ConfigurationName.hangulBackQuoteOutputCharacter)
+    Configuration.shared.hangulWonCurrencySymbolForBackQuote = true
+    XCTAssertEqual(Configuration.shared.hangulBackQuoteOutputCharacter, "₩")
+    Configuration.shared.hangulWonCurrencySymbolForBackQuote = false
+    XCTAssertEqual(Configuration.shared.hangulBackQuoteOutputCharacter, "")
+
+    Configuration.shared.hangulBackQuoteOutputCharacter = "👨‍👩‍👧‍👦"
+    XCTAssertEqual(Configuration.shared.hangulBackQuoteOutputCharacter, "👨‍👩‍👧‍👦")
+    XCTAssertFalse(Configuration.isValidHangulSpecialCharacter("\u{200D}"))
+    XCTAssertFalse(Configuration.isValidHangulSpecialCharacter("\u{0301}"))
+    Configuration.shared.hangulBackQuoteOutputCharacter = "두글자"
+    XCTAssertEqual(Configuration.shared.hangulBackQuoteOutputCharacter, "👨‍👩‍👧‍👦")
+    Configuration.shared.hangulBackQuoteOutputCharacter = ""
+    XCTAssertEqual(Configuration.shared.hangulBackQuoteOutputCharacter, "")
   }
 
   func testDvorak() {
@@ -1033,7 +1089,7 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
     XCTAssertTrue(popups.allSatisfy { $0.controlSize == .small })
     let option = try XCTUnwrap(popups.first { $0.accessibilityLabel() == "Option 키 동작" })
     XCTAssertFalse(option.pullsDown)
-    XCTAssertTrue(option.isBordered)
+    XCTAssertFalse(option.isBordered)
     for popup in popups {
       XCTAssertFalse(
         popup.constraints.contains {
@@ -1046,12 +1102,27 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
           $0.firstAttribute == .width && $0.relation == .lessThanOrEqual && $0.constant == 220
         })
     }
+    let characterFields = views.compactMap { $0 as? NSTextField }.filter(\.isEditable)
+    XCTAssertEqual(
+      Set(characterFields.compactMap { $0.accessibilityLabel() }),
+      ["` 키 문자", "Shift+` 키 문자"])
+    XCTAssertTrue(characterFields.allSatisfy { $0.controlSize == .small })
+    XCTAssertTrue(characterFields.allSatisfy { $0.placeholderString == "기본" })
+    XCTAssertTrue(
+      characterFields.allSatisfy { field in
+        field.constraints.contains {
+          $0.firstAttribute == .width && $0.relation == .equal && $0.constant == 72
+        }
+      })
   }
 
   func testEveryPageKeyLoopContainsOnlyItsVisibleControlsInReadingOrder() throws {
     let (window, child) = try form()
     var labels = [
-      ["모아치기", "세벌식 정석 조합", "` 키로 원화 기호 입력", "키보드 레이아웃", "Option 키 동작"],
+      [
+        "모아치기", "세벌식 정석 조합", "` 키 문자", "Shift+` 키 문자", "키보드 레이아웃",
+        "Option 키 동작",
+      ],
       ["한글 ↔ 로마자", "한자 및 이모지", "로마자로 전환", "한글로 전환", "오른쪽 전환 키", "입력 모니터링 열기", "키보드 열기"],
       ["두벌식 종성 결합", "조합 상태 유지", "Esc로 로마자 전환", "업데이트 알림", "실험 버전 알림"],
     ]
@@ -1079,6 +1150,54 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
       XCTAssertEqual(readingOrder, labels[index])
       XCTAssertEqual(Set(visited.map(ObjectIdentifier.init)).count, visited.count)
     }
+  }
+
+  func testSpecialCharacterFieldsSaveOneGraphemeAndRejectLongValues() throws {
+    let configuration = Configuration()
+    let backQuoteKey = ConfigurationName.hangulBackQuoteOutputCharacter
+    let shiftBackQuoteKey = ConfigurationName.hangulShiftBackQuoteOutputCharacter
+    let originalBackQuote = configuration.object(forKey: backQuoteKey)
+    let originalShiftBackQuote = configuration.object(forKey: shiftBackQuoteKey)
+    addTeardownBlock {
+      if let originalBackQuote {
+        configuration.set(originalBackQuote, forKey: backQuoteKey)
+      } else {
+        configuration.removeObject(forKey: backQuoteKey)
+      }
+      if let originalShiftBackQuote {
+        configuration.set(originalShiftBackQuote, forKey: shiftBackQuoteKey)
+      } else {
+        configuration.removeObject(forKey: shiftBackQuoteKey)
+      }
+    }
+    configuration.removeObject(forKey: backQuoteKey)
+    configuration.removeObject(forKey: shiftBackQuoteKey)
+    let (_, child) = try form()
+    let fields = descendants(child.view).compactMap { $0 as? NSTextField }.filter(\.isEditable)
+    let backQuote = try XCTUnwrap(fields.first { $0.accessibilityLabel() == "` 키 문자" })
+    let shift = try XCTUnwrap(fields.first { $0.accessibilityLabel() == "Shift+` 키 문자" })
+
+    child.controlTextDidEndEditing(
+      Notification(name: NSControl.textDidEndEditingNotification, object: backQuote))
+    XCTAssertNil(configuration.object(forKey: backQuoteKey))
+
+    shift.stringValue = "@"
+    child.controlTextDidChange(
+      Notification(name: NSControl.textDidChangeNotification, object: shift))
+    XCTAssertEqual(configuration.hangulShiftBackQuoteOutputCharacter, "@")
+    XCTAssertEqual(shift.textColor, .labelColor)
+
+    shift.stringValue = "@@"
+    child.controlTextDidChange(
+      Notification(name: NSControl.textDidChangeNotification, object: shift))
+    XCTAssertEqual(configuration.hangulShiftBackQuoteOutputCharacter, "@")
+    XCTAssertEqual(shift.textColor, .systemRed)
+
+    shift.stringValue = ""
+    child.controlTextDidChange(
+      Notification(name: NSControl.textDidChangeNotification, object: shift))
+    XCTAssertEqual(configuration.hangulShiftBackQuoteOutputCharacter, "")
+    XCTAssertEqual(shift.textColor, .labelColor)
   }
 
   func testPermissionAndSystemShortcutRowsAreVisibleWithoutDisclosures() throws {

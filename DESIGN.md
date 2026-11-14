@@ -56,7 +56,7 @@ Jobs: select a familiar layout, change a shortcut, enable automatic ordering, di
 
 Observed and retained preferences structure:
 
-- **입력**: Hangul composition, strict combinations, won/backquote, Roman layout, Option behavior.
+- **입력**: Hangul composition, strict combinations, configurable grave/Shift-grave characters, Roman layout, Option behavior.
 - **단축키**: Hangul/Roman switch, Hanja/emoji, direct language shortcuts, plus always-visible Right-key Switching and System Shortcuts groups with native Open buttons.
 - **고급**: application compatibility, Esc behavior, updates; a plain Developer group appears only in Debug.
 
@@ -117,7 +117,7 @@ Typography:
 - Poetic line: **AppleMyungjo**, used only in large brand/editorial settings. Fallback to the system Korean serif. Never use it for controls or dense help.
 - Shipping vector wordmarks should eventually be outlined after approval; the current sheet keeps live accessible text for review and relies on installed macOS fonts.
 
-Spacing: 4/6/8/10/12/16/20 pt rhythm. The user's System Settings reference and independent advisor supersede both earlier large forms. Content width is fixed at 500 pt with 20 pt edges; the app window fits its height to the active category between 300 and 680 pt, keeping the top edge stable. Rows use a 34 pt minimum plus a 1 pt separator, 10 pt horizontal insets, and true label/control vertical centering. Separators are inset 10 pt. Section headers use 13 pt bold primary text aligned with the row labels; at most one concise 11 pt explanation sits below the group as a footer. Native switches use `.mini` (36×16 pt on macOS 26). Value popups and support buttons use bordered `.small` native controls so the value and menu affordance read as one control; popup width is capped at 220 pt for long-name truncation. Shortcut recorders use MASShortcut's native textured alignment at 120 pt, including its corrected clear-glyph position. Section gaps are 20 pt; no row subtitles or collapsible help.
+Spacing: 4/6/8/10/12/16/20 pt rhythm. The user's System Settings reference and independent advisor supersede both earlier large forms. Content width is fixed at 500 pt with 20 pt edges; the app window fits its height to the active category between 300 and 680 pt, keeping the top edge stable. Rows use a 34 pt minimum plus a 1 pt separator, 10 pt horizontal insets, and true label/control vertical centering. Separators are inset 10 pt. Section headers use 13 pt bold primary text aligned with the row labels; at most one concise 11 pt explanation sits below the group as a footer. Native switches use `.mini` (36×16 pt on macOS 26). Value popups are borderless `.small` native controls so they match System Settings; their width is capped at 220 pt for long-name truncation. Editable single-character fields use a bordered `.small` 72 pt control for clear affordance. Support buttons remain bordered `.small`. Shortcut recorders use MASShortcut's native textured alignment at 120 pt, including its corrected clear-glyph position. Section gaps are 20 pt; no row subtitles or collapsible help.
 
 Shape/elevation: native window chrome and stock `NSBox(.primary)` preference groups with system-owned fill/corners. No custom group fill, border, or radius: on macOS 26 the group should become slightly lighter than its dark window and slightly darker than its light window. Brand document target radii remain 8/12/20 pt plus pill and do not override native control geometry. No nested cards, floating shadows, or gloss. App-icon source master is a full 1024×1024 square with separate background/mark layers; the OS supplies the final mask. Rounded containers shown on the sheet are presentation mockups, not baked production masks.
 
@@ -138,6 +138,7 @@ Iconography: original **바람 궤적 B** mark; system SF Symbols for functional
 | Boolean setting | Native mini NSSwitch with VoiceOver name matching its visible row label; explanations belong to the group |
 | Value menu | Stock borderless regular NSPopUpButton with natural font/size and system-drawn arrow/hover/focus/type-select; no accessory style, custom cell, chip, or arrow overlay |
 | Two-choice setting | The same native popup language as other value settings; Option reuses its existing popup/action |
+| Special-character key | Two 72 pt native text fields configure unshifted and Shift+grave output; one grapheme only, empty restores the active layout's default |
 | Shortcut capture | Existing MASShortcut behavior with consistent width and accessible label |
 | System support | Always-visible compact groups and native Open buttons; no disclosure or inline-bezel links |
 | Installer | Straight instructions, concrete version/architecture/signature status, scoped backup/rollback |

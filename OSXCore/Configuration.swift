@@ -92,6 +92,10 @@ enum ConfigurationName {
   public static let romanModeByEscapeKey = "ExchangeToRomanModeByEscapeKey"
   /// 한글 입력기일 때 역따옴표(`)로 원화 기호(₩) 입력.
   public static let hangulWonCurrencySymbolForBackQuote = "HangulWonCurrencySymbolForBackQuote"
+  /// 한글 입력기에서 물리적 역따옴표(`) 키로 입력할 사용자 지정 문자.
+  public static let hangulBackQuoteOutputCharacter = "HangulBackQuoteOutputCharacter"
+  /// 한글 입력기에서 Shift+역따옴표(`) 키로 입력할 사용자 지정 문자.
+  public static let hangulShiftBackQuoteOutputCharacter = "HangulShiftBackQuoteOutputCharacter"
   /// 완성되지 않은 낱자 자동 교정 (모아치기).
   public static let hangulAutoReorder = "HangulAutoReorder"
   /// Lab 전용 물리적 키 묶기. 사용자 동의 전에는 꺼져 있다.
@@ -113,7 +117,8 @@ enum ConfigurationName {
   static let migratable = [
     lastHangulInputMode, lastRomanInputMode, inputModeExchangeKey, inputModeSearchKey,
     inputModeEnglishKey, inputModeKoreanKey, optionKeyBehavior, overridingKeyboardName,
-    romanModeByEscapeKey, hangulWonCurrencySymbolForBackQuote, hangulAutoReorder,
+    romanModeByEscapeKey, hangulWonCurrencySymbolForBackQuote, hangulBackQuoteOutputCharacter,
+    hangulShiftBackQuoteOutputCharacter, hangulAutoReorder,
     hangulNonChoseongCombination, hangulDeferredSymbolCommit,
     hangulForceStrictCombinationRule, rightToggleKey, updateNotification,
     updateNotificationExperimental,
@@ -333,6 +338,58 @@ public class Configuration: UserDefaults {
     }
     set {
       set(newValue, forKey: ConfigurationName.hangulWonCurrencySymbolForBackQuote)
+    }
+  }
+
+  public static func isValidHangulSpecialCharacter(_ value: String) -> Bool {
+    guard !value.isEmpty else { return true }
+    guard value.count == 1 else { return false }
+    let scalars = value.unicodeScalars
+    guard !scalars.contains(where: { $0.properties.generalCategory == .control }) else {
+      return false
+    }
+    return scalars.contains { scalar in
+      if CharacterSet.whitespacesAndNewlines.contains(scalar) { return false }
+      switch scalar.properties.generalCategory {
+      case .control, .format, .nonspacingMark, .spacingMark, .enclosingMark:
+        return false
+      default:
+        return true
+      }
+    }
+  }
+
+  public var hasExplicitHangulBackQuoteOutputCharacter: Bool {
+    object(forKey: ConfigurationName.hangulBackQuoteOutputCharacter) != nil
+  }
+
+  /// 한글 입력기에서 물리적 역따옴표(`) 키로 입력할 문자.
+  /// 명시값이 없으면 기존 원화 기호 설정을 호환 기본값으로 사용한다.
+  public var hangulBackQuoteOutputCharacter: String {
+    get {
+      if let value = object(forKey: ConfigurationName.hangulBackQuoteOutputCharacter) as? String {
+        return Self.isValidHangulSpecialCharacter(value) ? value : ""
+      }
+      return hangulWonCurrencySymbolForBackQuote ? "₩" : ""
+    }
+    set {
+      guard Self.isValidHangulSpecialCharacter(newValue) else { return }
+      set(newValue, forKey: ConfigurationName.hangulBackQuoteOutputCharacter)
+    }
+  }
+
+  /// 한글 입력기에서 Shift+역따옴표(`) 키로 입력할 문자.
+  /// 빈 값이면 현재 자판의 기본 문자를 사용한다.
+  public var hangulShiftBackQuoteOutputCharacter: String {
+    get {
+      guard
+        let value = object(forKey: ConfigurationName.hangulShiftBackQuoteOutputCharacter) as? String
+      else { return "" }
+      return Self.isValidHangulSpecialCharacter(value) ? value : ""
+    }
+    set {
+      guard Self.isValidHangulSpecialCharacter(newValue) else { return }
+      set(newValue, forKey: ConfigurationName.hangulShiftBackQuoteOutputCharacter)
     }
   }
 

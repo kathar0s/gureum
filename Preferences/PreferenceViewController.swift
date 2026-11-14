@@ -57,13 +57,17 @@ private final class GureumShortcutView: MASShortcutView {
 #endif
 
 @objc(PreferenceViewController)
-final class PreferenceViewController: NSViewController {
+final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
   @IBOutlet private var debugButton: NSButton!
   /// 옵션 키 동작.
   @IBOutlet private var optionKeyBehaviorButton: NSPopUpButton!
 
   /// 한글 입력기일 때 역따옴표(`)로 원화 기호(₩) 입력.
   @IBOutlet private var hangulWonCurrencySymbolForBackQuoteButton: NSButton!
+  private var hangulBackQuoteOutputCharacterField: NSTextField!
+  private var hangulShiftBackQuoteOutputCharacterField: NSTextField!
+  private var hangulSpecialCharacterHelp: NSTextField!
+  private var editedSpecialCharacterFields: Set<ObjectIdentifier> = []
   /// 완성되지 않은 낱자 자동 교정 (모아치기).
   @IBOutlet private var hangulAutoReorderButton: NSButton!
   /// 두벌식 초성 조합 중에도 종성 결합 허용 (MS윈도 호환).
@@ -101,6 +105,9 @@ final class PreferenceViewController: NSViewController {
   private var buildingKeyViews: [NSView] = []
   private var sectionPicker: NSSegmentedControl!
   private let sectionTitles = ["입력", "단축키", "고급"]
+  private static let hangulSpecialCharacterHelpText =
+    "한글 입력 중 사용할 문자 한 개를 입력하세요. 비우면 현재 자판의 기본 문자를 사용합니다."
+  private static let hangulSpecialCharacterErrorText = "한 글자만 입력하세요. 예: ₩ · @ …"
   #if !USE_PREFPANE
     private var physicalChordSwitch: NSSwitch?
     private var physicalChordStatus: NSTextField?
@@ -230,6 +237,11 @@ final class PreferenceViewController: NSViewController {
     styleMenu(layoutMenu, label: "키보드 레이아웃")
     styleMenu(rightToggleKeyButton, label: "오른쪽 전환 키")
     styleMenu(optionKeyBehaviorButton, label: "Option 키 동작")
+    hangulBackQuoteOutputCharacterField = specialCharacterField(
+      value: configuration.hangulBackQuoteOutputCharacter, label: "` 키 문자")
+    hangulShiftBackQuoteOutputCharacterField = specialCharacterField(
+      value: configuration.hangulShiftBackQuoteOutputCharacter, label: "Shift+` 키 문자")
+    hangulSpecialCharacterHelp = helperText(Self.hangulSpecialCharacterHelpText)
 
     let inputSections: [NSView] = [
       section(
@@ -241,13 +253,15 @@ final class PreferenceViewController: NSViewController {
           settingRow(
             "세벌식 정석 조합",
             control: settingSwitch(hangulForceStrictCombinationRuleButton, label: "세벌식 정석 조합")),
-          settingRow(
-            "` 키로 원화 기호 입력",
-            control: settingSwitch(
-              hangulWonCurrencySymbolForBackQuoteButton, label: "` 키로 원화 기호 입력")),
         ],
         explanation: helperText(
           "모아치기는 순서가 바뀐 낱자를 자동으로 조합합니다. 정석 조합은 세벌식 최종·390에서 이중모음과 겹받침을 해당 자판 규칙으로 제한합니다.")),
+      section(
+        "특수문자 키",
+        rows: [
+          settingRow("` 키 문자", control: hangulBackQuoteOutputCharacterField),
+          settingRow("Shift+` 키 문자", control: hangulShiftBackQuoteOutputCharacterField),
+        ], explanation: hangulSpecialCharacterHelp),
       section(
         "로마자 입력",
         rows: [
@@ -549,6 +563,8 @@ final class PreferenceViewController: NSViewController {
     ])
     if control is NSPopUpButton {
       control.widthAnchor.constraint(lessThanOrEqualToConstant: 220).isActive = true
+    } else if let textField = control as? NSTextField, textField.isEditable {
+      textField.widthAnchor.constraint(equalToConstant: 72).isActive = true
     } else if control is MASShortcutView {
       control.widthAnchor.constraint(equalToConstant: 120).isActive = true
       control.heightAnchor.constraint(
@@ -572,12 +588,23 @@ final class PreferenceViewController: NSViewController {
   }
 
   private func styleMenu(_ menu: NSPopUpButton, label: String) {
-    menu.bezelStyle = .rounded
-    menu.isBordered = true
+    menu.isBordered = false
     menu.controlSize = .small
     menu.alignment = .right
     menu.cell?.lineBreakMode = .byTruncatingMiddle
     menu.setAccessibilityLabel(label)
+  }
+
+  private func specialCharacterField(value: String, label: String) -> NSTextField {
+    let field = NSTextField(string: value)
+    field.controlSize = .small
+    field.font = .systemFont(ofSize: 13, weight: .medium)
+    field.alignment = .center
+    field.placeholderString = "기본"
+    field.delegate = self
+    field.setAccessibilityLabel(label)
+    field.setAccessibilityHelp(Self.hangulSpecialCharacterHelpText)
+    return field
   }
 
   private func shortcutControl(_ control: MASShortcutView, label: String) -> NSView {
@@ -667,6 +694,52 @@ final class PreferenceViewController: NSViewController {
   @objc private func layoutMenuChanged(_ sender: NSPopUpButton) {
     guard inputSources.indices.contains(sender.indexOfSelectedItem) else { return }
     configuration.overridingKeyboardName = inputSources[sender.indexOfSelectedItem].identifier
+  }
+
+  func controlTextDidChange(_ notification: Notification) {
+    guard let field = notification.object as? NSTextField else { return }
+    guard
+      field === hangulBackQuoteOutputCharacterField
+        || field === hangulShiftBackQuoteOutputCharacterField
+    else { return }
+    editedSpecialCharacterFields.insert(ObjectIdentifier(field))
+    if let editor = field.currentEditor() as? NSTextView, editor.hasMarkedText() { return }
+    updateSpecialCharacterSetting(for: field)
+  }
+
+  func controlTextDidEndEditing(_ notification: Notification) {
+    guard let field = notification.object as? NSTextField else { return }
+    guard editedSpecialCharacterFields.remove(ObjectIdentifier(field)) != nil else { return }
+    updateSpecialCharacterSetting(for: field)
+  }
+
+  private func updateSpecialCharacterSetting(for field: NSTextField) {
+    if field === hangulBackQuoteOutputCharacterField {
+      updateSpecialCharacterField(
+        field, save: { configuration.hangulBackQuoteOutputCharacter = $0 })
+    } else if field === hangulShiftBackQuoteOutputCharacterField {
+      updateSpecialCharacterField(
+        field, save: { configuration.hangulShiftBackQuoteOutputCharacter = $0 })
+    } else {
+      return
+    }
+    let hasError =
+      hangulBackQuoteOutputCharacterField.textColor == .systemRed
+      || hangulShiftBackQuoteOutputCharacterField.textColor == .systemRed
+    hangulSpecialCharacterHelp.stringValue =
+      hasError
+      ? Self.hangulSpecialCharacterErrorText : Self.hangulSpecialCharacterHelpText
+    hangulSpecialCharacterHelp.textColor = hasError ? .systemRed : .secondaryLabelColor
+  }
+
+  private func updateSpecialCharacterField(
+    _ field: NSTextField, save: (String) -> Void
+  ) {
+    let value = field.stringValue
+    let isValid = Configuration.isValidHangulSpecialCharacter(value)
+    field.textColor = isValid ? .labelColor : .systemRed
+    field.toolTip = isValid ? nil : Self.hangulSpecialCharacterErrorText
+    if isValid { save(value) }
   }
 
   private func runAppleScript(_ script: String) {
