@@ -21,6 +21,21 @@ enum RomanLayoutAutocorrector {
     output.components(separatedBy: sentencePunctuation).filter { !$0.isEmpty }
   }
 
+  static func isKnownEnglishExpression(
+    _ output: String, isKnownWord: (String) -> Bool
+  ) -> Bool {
+    let candidates = englishWordCandidates(output)
+    guard !candidates.isEmpty else { return false }
+    return candidates.allSatisfy { candidate in
+      if isKnownWord(candidate) { return true }
+      guard candidate.count.isMultiple(of: 2) else { return false }
+      let midpoint = candidate.index(candidate.startIndex, offsetBy: candidate.count / 2)
+      let first = String(candidate[..<midpoint])
+      let second = String(candidate[midpoint...])
+      return first == second && isKnownWord(first)
+    }
+  }
+
   static func convert(_ keys: String, keyboard: String) -> String? {
     let supported = ["3f", "39", "3fs", "39s", "3s", "32", "3gs", "3-2011", "3-2012", "ahn"]
     guard supported.contains(keyboard), (3...64).contains(keys.count),
@@ -124,10 +139,8 @@ public class InputReceiver: InputTextDelegate {
     if key == .space || key == .return || key == .tab {
       defer { romanAutocorrectionSuppressed = false }
       guard roman.hasBufferedWord else { return nil }
-      let englishCandidates = RomanLayoutAutocorrector.englishWordCandidates(roman.composedString)
-      let isKnownEnglish =
-        !englishCandidates.isEmpty
-        && englishCandidates.allSatisfy(romanAutocorrectionKnownEnglishWord)
+      let isKnownEnglish = RomanLayoutAutocorrector.isKnownEnglishExpression(
+        roman.composedString, isKnownWord: romanAutocorrectionKnownEnglishWord)
       let converted =
         isKnownEnglish
         ? nil : RomanLayoutAutocorrector.convert(roman.bufferedPhysicalKeys, keyboard: keyboard)
@@ -154,6 +167,10 @@ public class InputReceiver: InputTextDelegate {
       roman.bufferedPhysicalKeys.count < 64
     else {
       resetRomanAutocorrection()
+      return nil
+    }
+    if output == "/", !roman.hasBufferedWord {
+      romanAutocorrectionSuppressed = true
       return nil
     }
     if !roman.hasBufferedWord {
@@ -371,7 +388,10 @@ extension InputReceiver {  // IMKServerInput
     dlog(
       debugInputReceiver, "** InputController -commitComposition: with sender: %@ / strings: %@",
       sender as! NSObject, commitString)
-    var range = controller.selectionRange()
+    let markedRange = sender.markedRange()
+    var range =
+      markedRange.location != NSNotFound && markedRange.length > 0
+      ? markedRange : controller.selectionRange()
     dlog(debugLogging, "LOGGING::COMMIT::%lu:%lu:%@", range.location, range.length, commitString)
     // NSLog("range1 \(range)")글
     if range.length == 0 {

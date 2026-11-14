@@ -463,6 +463,7 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
   override func viewDidAppear() {
     super.viewDidAppear()
     updateKeyViewLoop()
+    view.window?.makeFirstResponder(nil)
   }
 
   /// The nib owns the existing setting controls and actions; this form gives them a

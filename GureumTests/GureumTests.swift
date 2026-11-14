@@ -1113,8 +1113,11 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
     app.controller.receiver.romanAutocorrectionAvailable = { true }
     app.controller.receiver.romanAutocorrectionSecureInput = { secure }
     app.controller.receiver.romanAutocorrectionKnownEnglishWord = { word in
-      ["hello", "world", "swift", "apple", "yes", "if", "or", "it", "he", "me"]
-        .contains(word.lowercased())
+      [
+        "hello", "world", "swift", "apple", "paseo", "compact", "yes", "if", "or", "it",
+        "he", "me",
+      ]
+      .contains(word.lowercased())
     }
     if enabled, let identifier = app.client.bundleIdentifier() {
       Configuration.shared.hangulLayoutAutocorrectionApplications = [identifier: "Test app"]
@@ -1268,6 +1271,35 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
       XCTAssertEqual(app.client.string, word + " ")
       XCTAssertTrue(app.controller.receiver.composer.inputMode.hasSuffix("system"))
     }
+  }
+
+  func testRepeatedKnownEnglishWordsRemainRoman() {
+    for word in ["appleapple", "paseopaseo", "compactcompact"] {
+      let app = app()
+      app.inputKeys(word)
+      app.inputText(" ", key: .space)
+      XCTAssertEqual(app.client.string, word + " ")
+      XCTAssertTrue(app.controller.receiver.composer.inputMode.hasSuffix("system"))
+    }
+  }
+
+  func testKnownEnglishCommitsMarkedTextExactlyOnceWithCaretAtTheEnd() {
+    let app = app()
+    app.inputKeys("apple")
+    let marked = app.client.markedRange()
+    XCTAssertEqual(app.client.markedString(), "apple")
+    app.client.setSelectedRange(NSRange(location: NSMaxRange(marked), length: 0))
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, "apple ")
+  }
+
+  func testSlashCommandsBypassTheMarkedWordBuffer() {
+    let app = app()
+    app.inputKeys("/compact/compact")
+    XCTAssertEqual(app.client.string, "/compact/compact")
+    XCTAssertEqual(app.client.markedString(), "")
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, "/compact/compact ")
   }
 
   func testFeatureIsOffWithoutAnAllowedApplication() {
@@ -1585,6 +1617,12 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
     let navigation = try XCTUnwrap(toolbar.items.first as? NSToolbarItemGroup)
     XCTAssertEqual(navigation.subitems.map(\.label), child.settingsSectionTitles)
     XCTAssertEqual(navigation.selectedIndex, 0)
+  }
+
+  func testOpeningSettingsDoesNotFocusAnEditableField() throws {
+    let (window, child) = try form()
+    child.viewDidAppear()
+    XCTAssertFalse(window.firstResponder is NSTextView)
   }
 
   func testAdvancedPageFitsWithoutReachingTheScrollHeightCap() throws {
