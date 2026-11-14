@@ -1381,6 +1381,32 @@ class InputMethodIdentityTests: XCTestCase {
     XCTAssertFalse(identity.supportsUpstreamUpdates)
   }
 
+  func testBaramInfoPlistUsesDedicatedInputSourceIcon() throws {
+    let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+      .deletingLastPathComponent()
+    let plistURL = root.appendingPathComponent("OSX/Baram-Info.plist")
+    let data = try Data(contentsOf: plistURL)
+    let plist = try XCTUnwrap(
+      PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
+    XCTAssertEqual(plist["CFBundleSignature"] as? String, "Barm")
+    let component = try XCTUnwrap(plist["ComponentInputModeDict"] as? [String: Any])
+    let modes = try XCTUnwrap(component["tsInputModeListKey"] as? [String: [String: Any]])
+    XCTAssertEqual(modes.count, GureumInputSource.allCases.count)
+    for mode in modes.values {
+      for key in [
+        "tsInputModeAlternateMenuIconFileKey", "tsInputModeMenuIconFileKey",
+        "tsInputModePaletteIconFileKey",
+      ] {
+        XCTAssertEqual(mode[key] as? String, "baram.png")
+      }
+    }
+    let asset = root.appendingPathComponent("OSX/Assets.xcassets/baram.imageset")
+    XCTAssertTrue(
+      FileManager.default.fileExists(atPath: asset.appendingPathComponent("baram.png").path))
+    XCTAssertTrue(
+      FileManager.default.fileExists(atPath: asset.appendingPathComponent("baram@2x.png").path))
+  }
+
   func testUpstreamInputSourceIdentifiersRetainTheirExistingValues() throws {
     let identity = try identity()
     XCTAssertEqual(sourceSuffixes.count, GureumInputSource.allCases.count)

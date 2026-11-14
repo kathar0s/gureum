@@ -40,3 +40,9 @@ export function standalone(id, title, options = {}) {
   const content = options.background ? `<g transform="translate(16 16) scale(.75)">${geometry}</g>` : geometry;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${options.size || 128}" height="${options.size || 128}" viewBox="0 0 128 128" role="img" aria-labelledby="title"><title id="title">${title}</title>${bg}${content}</svg>`;
 }
+
+export function inputSourceIcon(title, size = 128) {
+  const background = '<rect x="5" y="5" width="118" height="118" rx="26" fill="#14675F"/>';
+  const geometry = `<g transform="translate(-7 0)">${strands(small, ['#F6F4EE'])}</g>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 128 128" role="img" aria-labelledby="title"><title id="title">${title}</title>${background}${geometry}</svg>`;
+}

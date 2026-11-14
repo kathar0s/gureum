@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { standalone, symbols } from './mark.mjs';
+import { inputSourceIcon, standalone, symbols } from './mark.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -34,6 +34,18 @@ for (const [id, name, options] of [
     execFileSync('rsvg-convert', ['-w', `${size}`, '-h', `${size}`, svg, '-o', join(assets, `${name}-${size}.png`)]);
   }
 }
+const inputSourceSVG = join(assets, 'baram-input-source-icon.svg');
+writeFileSync(inputSourceSVG, inputSourceIcon('바람 입력 소스 아이콘'));
+for (const size of [16, 32]) {
+  execFileSync('rsvg-convert', [
+    '-w', `${size}`, '-h', `${size}`, inputSourceSVG,
+    '-o', join(assets, `baram-input-source-icon-${size}.png`),
+  ]);
+}
+const inputSourceAsset = join(root, '../../../OSX/Assets.xcassets/baram.imageset');
+mkdirSync(inputSourceAsset, { recursive: true });
+copyFileSync(join(assets, 'baram-input-source-icon-16.png'), join(inputSourceAsset, 'baram.png'));
+copyFileSync(join(assets, 'baram-input-source-icon-32.png'), join(inputSourceAsset, 'baram@2x.png'));
 const prepared = readFileSync(join(root, 'sheet.html'), 'utf8')
   .replace('{{MARK_SYMBOLS}}', symbols())
   .replace('href="tokens.css"', 'href="../tokens.css"')

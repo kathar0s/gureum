@@ -24,6 +24,7 @@ status: v0.4 — 이름·도메인·바람 궤적 B 방향 반영 / 최종 기�
 | `recognition.html` / `brand-sheet/recognition.png` | 16/18/32/128 px, 워드마크 없는 실루엣 비교판 |
 | `assets/baram-mark-master.svg` / `baram-mark-small.svg` | 생성된 원본 벡터와 작은 크기 광학 보정 |
 | `assets/baram-app-icon-concept.svg` | 1024 정사각, 비취 바탕과 종이색 단색 획의 앱 아이콘 검토안 |
+| `assets/baram-input-source-icon.svg` | macOS 입력 소스 목록용 비취 바탕·종이색 B 아이콘 원본 |
 
 ```sh
 cd /Users/nexus/workspace/kathar0s/gureum
@@ -62,6 +63,7 @@ node docs/brand/baram/build.mjs --sync-obsidian
 - Mac UI: AppKit system title/body/label, 13 pt / 11 pt 이상 보조 설명.
 - 기능 아이콘: **SF Symbols**, 이모지 없음. 메뉴·키보드·VoiceOver의 네이티브 동작 유지.
 - 앱 아이콘: 1024×1024 정사각 마스터에서 배경·마크 레이어로 내보내고 OS 마스크를 고려합니다. 메뉴바는 단색 template와 별도 16/18 pt 광학 보정.
+- 입력 소스 목록: 16/32 px 전용 비취 정사각과 종이색 B를 사용해 기존 구름 아이콘과 구분합니다.
 - 말투: 단정할 수 있는 사실만 단정합니다. 불리한 사실을 먼저 알리고 다음 행동 하나를 제시합니다. 근거 없는 최상급·완벽·모든 앱 지원 주장은 사용하지 않습니다.
 
 ## 자산 출처

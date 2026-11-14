@@ -132,7 +132,7 @@ Iconography: original **바람 궤적 B** mark; system SF Symbols for functional
 |---|---|
 | Wordmark | Korean name primary; English descriptor secondary; keep “입력기” subordinate |
 | App icon | Flowing B made from a stem and two wind curls; direction approved, geometry pending visual approval and size testing |
-| Menu symbol | Monochrome template; optically simplified; preserve keyboard-layout distinction through existing text/metadata |
+| Menu symbol | Menu-bar template is monochrome and optically simplified. System Settings input-source rows use a dedicated jade tile with a paper-colored B, while layout names preserve keyboard distinctions in text |
 | Category navigation | App path: centered native preference toolbar with Input / Shortcuts / Advanced icons and fitted content height. prefPane fallback: native three-way segmented control |
 | Boolean setting | Native mini NSSwitch with VoiceOver name matching its visible row label; explanations belong to the group |
 | Value menu | Stock borderless regular NSPopUpButton with natural font/size and system-drawn arrow/hover/focus/type-select; no accessory style, custom cell, chip, or arrow overlay |
