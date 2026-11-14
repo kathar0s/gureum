@@ -1087,6 +1087,234 @@ class GureumTests: XCTestCase {
   //    }
 }
 
+class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
+  private func app(
+    romanSource: GureumInputSource = .system, enabled: Bool = true, secure: Bool = false
+  ) -> VirtualApp {
+    let app = ModerateApp()
+    app.controller.receiver.romanAutocorrectionAvailable = { true }
+    app.controller.receiver.romanAutocorrectionSecureInput = { secure }
+    if enabled, let identifier = app.client.bundleIdentifier() {
+      Configuration.shared.hangulLayoutAutocorrectionApplications = [identifier: "Test app"]
+    }
+    app.controller.setValue(
+      romanSource.rawValue, forTag: kTextServiceInputModePropertyTag, client: app.client)
+    Configuration.shared.lastHangulInputMode = GureumInputSource.han3Final.rawValue
+    return app
+  }
+
+  func testSuccessfulSebeolsikCompositionIsTheConversionCriterion() {
+    XCTAssertEqual(RomanLayoutAutocorrector.convert("jfshea", keyboard: "3f"), "안녕")
+    XCTAssertEqual(RomanLayoutAutocorrector.convert("jfshea", keyboard: "39"), "안녕")
+    for keys in ["hello", "world", "jfs", "jfsheaz", "Jfshea", "jfshea1"] {
+      XCTAssertNil(RomanLayoutAutocorrector.convert(keys, keyboard: "3f"), keys)
+    }
+    XCTAssertNil(RomanLayoutAutocorrector.convert("jfshea", keyboard: "2-full"))
+    XCTAssertNil(RomanLayoutAutocorrector.convert("jfshea", keyboard: "missing"))
+  }
+
+  func testConversionWaitsForWhitespaceAndPreservesBoundary() {
+    for (boundary, key) in [(" ", KeyCode.space), ("\n", .return), ("\t", .tab)] {
+      let app = app()
+      app.inputKeys("jfshea")
+      XCTAssertEqual(app.client.string, "jfshea")
+
+      app.inputText(boundary, key: key)
+
+      XCTAssertEqual(app.client.string, "안녕" + boundary)
+      XCTAssertTrue(app.controller.receiver.composer.inputMode.hasSuffix("system"))
+    }
+  }
+
+  func testOnlyTheTypedWordRangeIsReplacedAfterUnicodeText() {
+    let app = app()
+    app.client.string = "🙂 앞 문장 "
+    app.client.setSelectedRange(
+      NSRange(location: (app.client.string as NSString).length, length: 0))
+    app.inputKeys("jfshea")
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, "🙂 앞 문장 안녕 ")
+  }
+
+  func testOrdinaryEnglishAndIncompleteJamoRemainRoman() {
+    let app = app()
+    for word in ["hello", "world", "swift", "apple", "jfs"] {
+      app.inputKeys(word)
+      app.inputText(" ", key: .space)
+    }
+    XCTAssertEqual(app.client.string, "hello world swift apple jfs ")
+  }
+
+  func testFeatureIsOffWithoutAnAllowedApplication() {
+    let app = app(enabled: false)
+    XCTAssertTrue(Configuration.shared.hangulLayoutAutocorrectionApplications.isEmpty)
+    app.inputKeys("jfshea")
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, "jfshea ")
+  }
+
+  func testUnavailableProductAndSecureInputKeepTheOriginalWord() {
+    let unavailable = app()
+    unavailable.controller.receiver.romanAutocorrectionAvailable = { false }
+    unavailable.inputKeys("jfshea")
+    unavailable.inputText(" ", key: .space)
+    XCTAssertEqual(unavailable.client.string, "jfshea ")
+
+    let secure = app(secure: true)
+    secure.inputKeys("jfshea")
+    secure.inputText(" ", key: .space)
+    XCTAssertEqual(secure.client.string, "jfshea ")
+  }
+
+  func testSecureInputActivatedAtTheBoundaryDiscardsThePendingWord() {
+    let app = app()
+    app.inputKeys("jfshea")
+    app.controller.receiver.romanAutocorrectionSecureInput = { true }
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, "jfshea ")
+  }
+
+  func testDigitsUppercaseAndPunctuationPreventSuffixConversion() {
+    let app = app()
+    for word in ["1jfshea", "Jjfshea", "/jfshea", "jfshea.com"] {
+      app.inputKeys(word)
+      app.inputText(" ", key: .space)
+    }
+    XCTAssertEqual(app.client.string, "1jfshea Jjfshea /jfshea jfshea.com ")
+  }
+
+  func testChangedDocumentAndMovedCaretInvalidateThePendingWord() {
+    let app = app()
+    app.inputKeys("jfshea")
+    app.client.string = "abcdef"
+    app.client.setSelectedRange(NSRange(location: 6, length: 0))
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, "abcdef ")
+
+    let moved = self.app()
+    moved.inputKeys("jfshea")
+    moved.client.setSelectedRange(NSRange(location: 3, length: 0))
+    moved.inputText(" ", key: .space)
+    // The existing mock host restores its empty marked range before default insertion.
+    // The correction must still preserve the Roman word when the caret was moved.
+    XCTAssertEqual(moved.client.string, "jfshea ")
+  }
+
+  func testSelectionAndMarkedTextAreNeverAutocorrected() {
+    let app = app()
+    app.inputKeys("jfshea")
+    app.client.setSelectedRange(NSRange(location: 0, length: 6))
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, "jfshea ")
+
+    let marked = self.app()
+    marked.inputKeys("jfshea")
+    marked.client.setMarkedText(
+      "jfshea", selectedRange: NSRange(location: 6, length: 0),
+      replacementRange: NSRange(location: 0, length: 6))
+    marked.inputText(" ", key: .space)
+    XCTAssertFalse(marked.client.string.contains("안녕"))
+  }
+
+  func testDeleteExternalCommitAndLayoutChangesResetTheBuffer() {
+    let app = app()
+    app.inputKeys("jfsheax")
+    app.inputDelete()
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, "jfshea ")
+
+    let committed = self.app()
+    committed.inputKeys("jfshea")
+    committed.controller.commitComposition(committed.client)
+    committed.inputText(" ", key: .space)
+    XCTAssertEqual(committed.client.string, "jfshea ")
+
+    let switched = self.app()
+    switched.inputKeys("jfshea")
+    switched.controller.setValue(
+      GureumInputSource.qwerty.rawValue, forTag: kTextServiceInputModePropertyTag,
+      client: switched.client)
+    switched.inputText(" ", key: .space)
+    XCTAssertEqual(switched.client.string, "jfshea ")
+  }
+
+  func testLayoutShortcutTakesPrecedenceOverTheWordBoundary() {
+    let app = app()
+    Configuration.shared.inputModeExchangeKey = (.space, [])
+    app.inputKeys("jfshea")
+
+    app.inputText(" ", key: .space)
+
+    XCTAssertEqual(app.client.string, "jfshea")
+    XCTAssertTrue(app.controller.receiver.composer.inputMode.hasSuffix("han3final"))
+  }
+
+  func testPhysicalKeysAreDistinctFromDvorakAndColemakOutput() {
+    for source in [GureumInputSource.qwerty, .dvorak, .colemak] {
+      let app = app(romanSource: source)
+      app.inputKeys("jfshea")
+      let original = app.client.string
+      if source != .qwerty { XCTAssertNotEqual(original, "jfshea") }
+      app.inputText(" ", key: .space)
+      XCTAssertEqual(app.client.string, "안녕 ", "\(source) original=\(original)")
+    }
+  }
+
+  func testTerminalAndCredentialAppsCannotBeAllowedAccidentally() {
+    for identifier in ["com.apple.Terminal", "com.googlecode.iterm2", "com.apple.keychainaccess"] {
+      Configuration.shared.hangulLayoutAutocorrectionApplications = [identifier: "Excluded app"]
+      XCTAssertFalse(Configuration.shared.usesHangulLayoutAutocorrection(for: identifier))
+    }
+    XCTAssertFalse(Configuration.shared.usesHangulLayoutAutocorrection(for: nil))
+  }
+
+  func testStateTrackerRejectsSelectionMarkedTextModifiersAndClientChanges() {
+    let owner = NSObject()
+    let other = NSObject()
+    for invalid in ["selection", "marked", "modifier", "client", "unreadable", "cursor"] {
+      var tracker = RomanLayoutAutocorrector()
+      var document = ""
+      for character in "jfshea" {
+        let text = String(character)
+        let key = keyMapReversed[text]!.0
+        XCTAssertNil(
+          tracker.consider(
+            key: key, modifiers: [], output: text,
+            selection: NSRange(location: document.utf16.count, length: 0),
+            marked: NSRange(location: NSNotFound, length: 0), client: ObjectIdentifier(owner),
+            mode: "system", keyboard: "3f", enabled: true, secureInput: false,
+            read: { (document as NSString).substring(with: $0) }))
+        document += text
+      }
+      let replacement = tracker.consider(
+        key: .space, modifiers: invalid == "modifier" ? .command : [], output: " ",
+        selection: NSRange(
+          location: invalid == "cursor" ? 3 : 6, length: invalid == "selection" ? 1 : 0),
+        marked: NSRange(location: 0, length: invalid == "marked" ? 6 : 0),
+        client: ObjectIdentifier(invalid == "client" ? other : owner), mode: "system",
+        keyboard: "3f", enabled: true, secureInput: false,
+        read: { invalid == "unreadable" ? nil : (document as NSString).substring(with: $0) })
+      XCTAssertNil(replacement, invalid)
+    }
+  }
+
+  func testModifierKeyAndExplicitBoundaryResetDiscardThePendingWord() {
+    for modifier in [NSEvent.ModifierFlags.command, .control, .option, .shift, .capsLock] {
+      let app = app()
+      app.inputKeys("jfshea")
+      app.inputKey(.ansiX, modifiers: modifier)
+      app.inputText(" ", key: .space)
+      XCTAssertFalse(app.client.string.contains("안녕"), "\(modifier)")
+    }
+
+    let app = app()
+    app.inputKeys("jfshea")
+    app.controller.receiver.resetRomanAutocorrection()
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, "jfshea ")
+  }
+}
+
 class PreferencesFormTests: IsolatedChordConfigurationTests {
   private func form() throws -> (NSWindow, PreferenceViewController) {
     let storyboard = NSStoryboard(name: "Configuration", bundle: .main)
@@ -1136,6 +1364,36 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
     XCTAssertLessThan(child.preferredContentHeight(for: 2), 680)
     let pageHeights = (0..<3).map(child.preferredContentHeight(for:))
     XCTAssertEqual(child.preferredWindowContentHeight(), pageHeights.max())
+  }
+
+  func testBaramAutocorrectionUsesAnAppPickerWithClearOptInCopy() throws {
+    guard InputMethodIdentity.current.isBaram else { throw XCTSkip("Baram-only preference") }
+    let (_, child) = try form()
+    select(2, in: child)
+    let views = descendants(child.view).filter { !$0.isHiddenOrHasHiddenAncestor }
+    let menu = try XCTUnwrap(
+      views.compactMap { $0 as? NSPopUpButton }.first {
+        $0.accessibilityLabel() == "자동 한글 변환"
+      })
+    XCTAssertEqual(menu.controlSize, .small)
+    XCTAssertFalse(menu.isBordered)
+    XCTAssertTrue(menu.itemArray.contains { ($0.representedObject as? String) == "choose" })
+    XCTAssertTrue(
+      views.compactMap { $0 as? NSTextField }.contains {
+        $0.stringValue.contains("jfshea → 안녕") && $0.stringValue.contains("선택한 앱에서만")
+      })
+    for appearance in [NSAppearance.Name.aqua, .darkAqua] {
+      child.view.appearance = NSAppearance(named: appearance)
+      child.view.layoutSubtreeIfNeeded()
+      let bitmap = try XCTUnwrap(child.view.bitmapImageRepForCachingDisplay(in: child.view.bounds))
+      child.view.cacheDisplay(in: child.view.bounds, to: bitmap)
+      let image = NSImage(size: child.view.bounds.size)
+      image.addRepresentation(bitmap)
+      let attachment = XCTAttachment(image: image)
+      attachment.name = "Baram autocorrection \(appearance.rawValue)"
+      attachment.lifetime = .keepAlways
+      add(attachment)
+    }
   }
 
   func testGroupsUsePrimaryBoxesAndMiniSwitches() throws {

@@ -99,6 +99,9 @@ enum ConfigurationName {
   public static let romanModeByEscapeKey = "ExchangeToRomanModeByEscapeKey"
   /// Esc로 로마자 전환을 사용할 앱의 번들 식별자와 표시 이름.
   public static let romanModeByEscapeKeyApplications = "ExchangeToRomanModeByEscapeKeyApplications"
+  /// 완성형 세벌식 조합을 자동 한글 변환할 앱. 빈 목록이면 꺼짐.
+  public static let hangulLayoutAutocorrectionApplications =
+    "HangulLayoutAutocorrectionApplications"
   /// 한글 입력기일 때 역따옴표(`)로 원화 기호(₩) 입력.
   public static let hangulWonCurrencySymbolForBackQuote = "HangulWonCurrencySymbolForBackQuote"
   /// 한글 입력기에서 물리적 역따옴표(`) 키로 입력할 사용자 지정 문자.
@@ -360,6 +363,34 @@ public class Configuration: UserDefaults {
     if romanModeByEscapeKey { return true }
     guard let bundleIdentifier, !bundleIdentifier.isEmpty else { return false }
     return romanModeByEscapeKeyApplications[bundleIdentifier] != nil
+  }
+
+  public var hangulLayoutAutocorrectionApplications: [String: String] {
+    get {
+      guard
+        let values = dictionary(forKey: ConfigurationName.hangulLayoutAutocorrectionApplications)
+      else { return [:] }
+      return values.reduce(into: [:]) { result, entry in
+        guard !entry.key.isEmpty, let name = entry.value as? String, !name.isEmpty else { return }
+        result[entry.key] = name
+      }
+    }
+    set {
+      set(
+        newValue.filter { !$0.key.isEmpty && !$0.value.isEmpty },
+        forKey: ConfigurationName.hangulLayoutAutocorrectionApplications)
+    }
+  }
+
+  public func usesHangulLayoutAutocorrection(for bundleIdentifier: String?) -> Bool {
+    guard let bundleIdentifier, !bundleIdentifier.isEmpty else { return false }
+    // Terminals and credential managers remain excluded even if selected accidentally.
+    let excluded = [
+      "com.apple.Terminal", "com.googlecode.iterm2", "dev.warp.Warp-Stable",
+      "com.apple.keychainaccess", "com.1password.1password", "com.agilebits.onepassword7",
+    ]
+    guard !excluded.contains(bundleIdentifier) else { return false }
+    return hangulLayoutAutocorrectionApplications[bundleIdentifier] != nil
   }
 
   /// 한글 입력기일 때 역따옴표(`)로 원화 기호(₩) 입력.

@@ -308,6 +308,7 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
   private var hangulSpecialCharacterHelp: NSTextField!
   private var editedSpecialCharacterFields: Set<ObjectIdentifier> = []
   private var escapeKeyApplicationMenu: SystemSettingsPopUpButton!
+  private var autocorrectionApplicationMenu: SystemSettingsPopUpButton!
   private var keyboardPreview: KeyboardPreviewView?
   /// 완성되지 않은 낱자 자동 교정 (모아치기).
   @IBOutlet private var hangulAutoReorderButton: NSButton!
@@ -490,6 +491,11 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
     escapeKeyApplicationMenu.action = #selector(escapeKeyApplicationMenuChanged(_:))
     styleMenu(escapeKeyApplicationMenu, label: "Esc로 로마자 전환")
     refreshEscapeKeyApplicationMenu()
+    autocorrectionApplicationMenu = SystemSettingsPopUpButton(frame: .zero, pullsDown: false)
+    autocorrectionApplicationMenu.target = self
+    autocorrectionApplicationMenu.action = #selector(autocorrectionApplicationMenuChanged(_:))
+    styleMenu(autocorrectionApplicationMenu, label: "자동 한글 변환")
+    refreshAutocorrectionApplicationMenu()
 
     var inputSections: [NSView] = [
       section(
@@ -578,14 +584,18 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
             "조합 상태 유지",
             control: settingSwitch(hangulDeferredSymbolCommitButton, label: "조합 상태 유지")),
         ], explanation: helperText("특정 앱에서 조합이 어긋날 때만 켜세요. 종성 결합은 Windows 방식, 조합 상태 유지는 JDK 앱용입니다.")
-      ),
-      section(
-        "앱별 동작",
-        rows: [
-          settingRow("Esc로 로마자 전환", control: escapeKeyApplicationMenu)
-        ], explanation: helperText("선택한 Vim·터미널·코드 편집기에서만 Esc 또는 Control+[로 한글 조합을 끝내고 로마자로 전환합니다.")
-      ),
+      )
     ]
+    var applicationRows = [settingRow("Esc로 로마자 전환", control: escapeKeyApplicationMenu)]
+    if InputMethodIdentity.current.isBaram {
+      applicationRows.append(settingRow("자동 한글 변환", control: autocorrectionApplicationMenu))
+    }
+    let applicationHelp =
+      InputMethodIdentity.current.isBaram
+      ? "선택한 앱에서만 적용합니다. Esc는 로마자로 전환합니다. 자동 한글 변환은 바람의 로마자 모드에서 공백·Return·Tab을 누를 때 완전히 조합된 세벌식 단어만 바꿉니다. 예: jfshea → 안녕. 터미널·보안 입력은 제외됩니다."
+      : "선택한 Vim·터미널·코드 편집기에서만 Esc 또는 Control+[로 한글 조합을 끝내고 로마자로 전환합니다."
+    advancedSections.append(
+      section("앱별 동작", rows: applicationRows, explanation: helperText(applicationHelp)))
     #if !USE_PREFPANE
       if InputMethodIdentity.current.supportsPhysicalChording {
         let toggle = NSSwitch()
@@ -864,9 +874,17 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
 
   private func refreshEscapeKeyApplicationMenu() {
     let applications = configuration.romanModeByEscapeKeyApplications
+    refreshApplicationMenu(
+      escapeKeyApplicationMenu, applications: applications,
+      summaryOverride: configuration.romanModeByEscapeKey ? "모든 앱 · 이전 설정" : nil)
+  }
+
+  private func refreshApplicationMenu(
+    _ menu: NSPopUpButton, applications: [String: String], summaryOverride: String? = nil
+  ) {
     let summary: String
-    if configuration.romanModeByEscapeKey {
-      summary = "모든 앱 · 이전 설정"
+    if let summaryOverride {
+      summary = summaryOverride
     } else if applications.isEmpty {
       summary = "사용 안 함"
     } else if applications.count == 1 {
@@ -875,28 +893,51 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
       summary = "\(applications.count)개 앱"
     }
 
-    escapeKeyApplicationMenu.removeAllItems()
-    escapeKeyApplicationMenu.addItem(withTitle: summary)
-    escapeKeyApplicationMenu.lastItem?.isEnabled = false
+    menu.removeAllItems()
+    menu.addItem(withTitle: summary)
+    menu.lastItem?.isEnabled = false
     if !applications.isEmpty {
-      escapeKeyApplicationMenu.menu?.addItem(.separator())
+      menu.menu?.addItem(.separator())
       for name in applications.values.sorted() {
         let item = NSMenuItem(title: name, action: nil, keyEquivalent: "")
         item.state = .on
         item.isEnabled = false
-        escapeKeyApplicationMenu.menu?.addItem(item)
+        menu.menu?.addItem(item)
       }
     }
-    escapeKeyApplicationMenu.menu?.addItem(.separator())
+    menu.menu?.addItem(.separator())
     let choose = NSMenuItem(title: "앱 선택…", action: nil, keyEquivalent: "")
     choose.representedObject = "choose"
-    escapeKeyApplicationMenu.menu?.addItem(choose)
-    if configuration.romanModeByEscapeKey || !applications.isEmpty {
+    menu.menu?.addItem(choose)
+    if summaryOverride != nil || !applications.isEmpty {
       let clear = NSMenuItem(title: "설정 지우기", action: nil, keyEquivalent: "")
       clear.representedObject = "clear"
-      escapeKeyApplicationMenu.menu?.addItem(clear)
+      menu.menu?.addItem(clear)
     }
-    escapeKeyApplicationMenu.selectItem(at: 0)
+    menu.selectItem(at: 0)
+  }
+
+  private func refreshAutocorrectionApplicationMenu() {
+    refreshApplicationMenu(
+      autocorrectionApplicationMenu,
+      applications: configuration.hangulLayoutAutocorrectionApplications)
+  }
+
+  @objc private func autocorrectionApplicationMenuChanged(_ sender: NSPopUpButton) {
+    defer { refreshAutocorrectionApplicationMenu() }
+    switch sender.selectedItem?.representedObject as? String {
+    case "choose":
+      guard
+        let applications = chooseApplications(
+          title: "자동 한글 변환을 사용할 앱 선택",
+          message: "바람의 로마자 모드에서 세벌식으로 완전히 조합되는 단어를 바꿉니다. 예: jfshea → 안녕. 터미널·보안 입력은 제외됩니다.")
+      else { return }
+      configuration.hangulLayoutAutocorrectionApplications = applications
+    case "clear":
+      configuration.hangulLayoutAutocorrectionApplications = [:]
+    default:
+      break
+    }
   }
 
   @objc private func escapeKeyApplicationMenuChanged(_ sender: NSPopUpButton) {
@@ -913,9 +954,19 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
   }
 
   private func chooseEscapeKeyApplications() {
+    guard
+      let applications = chooseApplications(
+        title: "Esc로 로마자 전환할 앱 선택",
+        message: "Vim, 터미널, 코드 편집기처럼 Esc 뒤에 로마자 입력이 필요한 앱을 선택하세요.")
+    else { return }
+    configuration.romanModeByEscapeKey = false
+    configuration.romanModeByEscapeKeyApplications = applications
+  }
+
+  private func chooseApplications(title: String, message: String) -> [String: String]? {
     let panel = NSOpenPanel()
-    panel.title = "Esc로 로마자 전환할 앱 선택"
-    panel.message = "Vim, 터미널, 코드 편집기처럼 Esc 뒤에 로마자 입력이 필요한 앱을 선택하세요."
+    panel.title = title
+    panel.message = message
     panel.prompt = "선택"
     panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
     panel.allowedContentTypes = [.applicationBundle]
@@ -923,7 +974,7 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
     panel.canChooseDirectories = false
     panel.allowsMultipleSelection = true
 
-    guard panel.runModal() == .OK else { return }
+    guard panel.runModal() == .OK else { return nil }
     let applications = panel.urls.reduce(into: [String: String]()) { result, url in
       guard let bundle = Bundle(url: url), let identifier = bundle.bundleIdentifier else { return }
       let name =
@@ -933,9 +984,7 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
         ?? url.deletingPathExtension().lastPathComponent
       result[identifier] = name
     }
-    guard !applications.isEmpty else { return }
-    configuration.romanModeByEscapeKey = false
-    configuration.romanModeByEscapeKeyApplications = applications
+    return applications.isEmpty ? nil : applications
   }
 
   private func specialCharacterField(value: String, label: String) -> NSTextField {

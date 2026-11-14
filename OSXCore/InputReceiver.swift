@@ -7,9 +7,126 @@
 //
 
 import Foundation
+import Hangul
 import InputMethodKit
 
 let debugInputReceiver = false
+
+/// Tracks only a word typed through this receiver. No surrounding document is retained.
+struct RomanLayoutAutocorrector {
+  struct Replacement: Equatable {
+    let range: NSRange
+    let converted: String
+  }
+
+  private var physicalKeys = ""
+  private var romanOutput = ""
+  private var start: Int?
+  private var client: ObjectIdentifier?
+  private var mode = ""
+  private var keyboard = ""
+  private var mayStartWord = true
+
+  mutating func reset(suppressUntilBoundary: Bool = false) {
+    physicalKeys = ""
+    romanOutput = ""
+    start = nil
+    client = nil
+    mode = ""
+    keyboard = ""
+    mayStartWord = !suppressUntilBoundary
+  }
+
+  mutating func consider(
+    key: KeyCode, modifiers: NSEvent.ModifierFlags, output: String?, selection: NSRange,
+    marked: NSRange, client: ObjectIdentifier, mode: String, keyboard: String,
+    enabled: Bool, secureInput: Bool, read: (NSRange) -> String?
+  ) -> Replacement? {
+    guard enabled, !secureInput, (0...(Int.max - 64)).contains(selection.location),
+      selection.length == 0,
+      marked.length == 0,
+      modifiers.intersection([.shift, .capsLock, .command, .control, .option, .function]).isEmpty
+    else {
+      reset(suppressUntilBoundary: true)
+      return nil
+    }
+
+    if self.client != nil,
+      self.client != client || self.mode != mode || self.keyboard != keyboard
+    {
+      reset()
+    }
+    if let start,
+      selection.location != start + romanOutput.utf16.count
+        || read(NSRange(location: start, length: romanOutput.utf16.count)) != romanOutput
+    {
+      reset(suppressUntilBoundary: true)
+    }
+
+    // Whitespace is deliberately the only automatic boundary in the first version.
+    // Punctuation may belong to a URL, identifier, or a shell command.
+    if key == .space || key == .return || key == .tab {
+      defer { reset() }
+      guard let start, let converted = Self.convert(physicalKeys, keyboard: keyboard) else {
+        return nil
+      }
+      return Replacement(
+        range: NSRange(location: start, length: romanOutput.utf16.count),
+        converted: converted)
+    }
+
+    guard keyMapLower.indices.contains(key.rawValue),
+      let physical = keyMapLower[key.rawValue], Self.isLowercaseASCII(physical),
+      let output, output.unicodeScalars.count == 1,
+      output.unicodeScalars.allSatisfy({ (33...126).contains($0.value) }), physicalKeys.count < 64
+    else {
+      reset(suppressUntilBoundary: true)
+      return nil
+    }
+    if start == nil {
+      guard mayStartWord else { return nil }
+      if selection.location > 0 {
+        guard let previous = read(NSRange(location: selection.location - 1, length: 1)),
+          previous.unicodeScalars.allSatisfy({ CharacterSet.whitespacesAndNewlines.contains($0) })
+        else {
+          reset(suppressUntilBoundary: true)
+          return nil
+        }
+      }
+      start = selection.location
+      self.client = client
+      self.mode = mode
+      self.keyboard = keyboard
+    }
+    physicalKeys += physical
+    romanOutput += output
+    return nil
+  }
+
+  static func convert(_ keys: String, keyboard: String) -> String? {
+    let supported = ["3f", "39", "3fs", "39s", "3s", "32", "3gs", "3-2011", "3-2012", "ahn"]
+    guard supported.contains(keyboard), (4...64).contains(keys.count),
+      keys.unicodeScalars.allSatisfy({ (97...122).contains($0.value) }),
+      let context = HGInputContext(keyboardIdentifier: keyboard)
+    else { return nil }
+    context.setOption(HANGUL_IC_OPTION_AUTO_REORDER, value: false)
+    var result = ""
+    for scalar in keys.unicodeScalars {
+      guard context.process(scalar.value) else { return nil }
+      result += representableString(ucsString: context.commitUCSString)
+    }
+    result += representableString(ucsString: context.flushUCSString())
+    guard result.unicodeScalars.count >= 2,
+      result.unicodeScalars.allSatisfy({ (0xAC00...0xD7A3).contains($0.value) })
+    else { return nil }
+    return result
+  }
+
+  private static func isLowercaseASCII(_ value: String) -> Bool {
+    value.unicodeScalars.count == 1
+      && value.unicodeScalars.allSatisfy { (97...122).contains($0.value) }
+  }
+}
 
 public class InputReceiver: InputTextDelegate {
   var inputClient: IMKTextInput & IMKUnicodeTextInput
@@ -17,6 +134,45 @@ public class InputReceiver: InputTextDelegate {
   weak var controller: InputController!
   var inputting: Bool = false
   var hasSelectionRange: Bool = false
+  private var romanLayoutAutocorrector = RomanLayoutAutocorrector()
+  var romanAutocorrectionAvailable: () -> Bool = { InputMethodIdentity.current.isBaram }
+  var romanAutocorrectionSecureInput: () -> Bool = {
+    PhysicalKeyEventSource.shared.secureInputEnabled
+  }
+
+  func resetRomanAutocorrection() {
+    romanLayoutAutocorrector.reset()
+  }
+
+  private func autocorrectRomanWord(
+    text: String?, key: KeyCode, modifiers: NSEvent.ModifierFlags,
+    client: IMKTextInput & IMKUnicodeTextInput
+  ) {
+    let configuration = Configuration.shared
+    guard composer.delegate is RomanComposer,
+      let source = GureumInputSource(rawValue: configuration.lastHangulInputMode)
+    else {
+      resetRomanAutocorrection()
+      return
+    }
+    let output =
+      composer.romanComposer.map(text: text, key: key, modifiers: modifiers)
+      .map(String.init) ?? text
+    let keyboard = effectiveHangulKeyboardIdentifier(
+      source.keyboardIdentifier,
+      strictCombinationRule: configuration.hangulForceStrictCombinationRule)
+    let replacement = romanLayoutAutocorrector.consider(
+      key: key, modifiers: modifiers, output: output, selection: client.selectedRange(),
+      marked: client.markedRange(), client: ObjectIdentifier(client as AnyObject),
+      mode: composer.inputMode, keyboard: keyboard,
+      enabled: romanAutocorrectionAvailable()
+        && configuration.usesHangulLayoutAutocorrection(for: client.bundleIdentifier()),
+      secureInput: romanAutocorrectionSecureInput(),
+      read: { client.attributedSubstring(from: $0)?.string })
+    if let replacement {
+      client.insertText(replacement.converted, replacementRange: replacement.range)
+    }
+  }
 
   init(
     server: IMKServer, delegate: Any!, client: IMKTextInput & IMKUnicodeTextInput,
@@ -97,6 +253,8 @@ public class InputReceiver: InputTextDelegate {
       }
     }
 
+    autocorrectRomanWord(text: string, key: keyCode, modifiers: flags, client: sender)
+
     dlog(
       debugLogging, "LOGGING::KEY::(%@)(%ld)(%lu)",
       string?.replacingOccurrences(of: "\n", with: "\\n") ?? "(nil)", keyCode.rawValue,
@@ -133,6 +291,7 @@ public class InputReceiver: InputTextDelegate {
   }
 
   func input(event: InputEvent, client sender: IMKTextInput & IMKUnicodeTextInput) -> InputResult {
+    resetRomanAutocorrection()
     switch event {
     case .changeLayout(let layout, let processed):
       let previousMode = composer.inputMode
@@ -172,6 +331,7 @@ extension InputReceiver {  // IMKServerInput
   // Committing a Composition
   // 조합을 중단하고 현재까지 조합된 글자를 커밋한다.
   func commitComposition(_ sender: IMKTextInput & IMKUnicodeTextInput) {
+    resetRomanAutocorrection()
     dlog(debugLogging, "LOGGING::EVENT::COMMIT-INTERNAL")
     commitCompositionEvent(sender)
   }
@@ -192,6 +352,7 @@ extension InputReceiver {  // IMKServerInput
   func commitCompositionEvent(_ sender: IMKTextInput & IMKUnicodeTextInput) -> Bool {
     dlog(debugLogging, "LOGGING::EVENT::COMMIT")
     if !inputting {
+      resetRomanAutocorrection()
       // 입력기 외부에서 들어오는 커밋 요청에 대해서는 편집 중인 글자도 커밋한다.
       dlog(
         debugInputController, "-- CANCEL composition because of external commit request from %@",
@@ -296,6 +457,7 @@ extension InputReceiver {  // IMKStateSetting
 
   //! @brief 자판 전환을 감지한다.
   func setValue(_ value: Any, forTag tag: Int, client sender: IMKTextInput & IMKUnicodeTextInput) {
+    resetRomanAutocorrection()
     InputMethodServer.shared.io.capsLockDate = nil
     dlog(debugLogging, "LOGGING::EVENT::CHANGE-%lu-%@", tag, value as? String ?? "(nonstring)")
     dlog(

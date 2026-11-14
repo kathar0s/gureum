@@ -437,6 +437,7 @@ extension InputController {  // IMKServerInputHandleEvent
       dlog(debugLogging, "LOGGING::PROCESSED::\(result)")
       return result.processed
     case .flagsChanged:
+      receiver.resetRomanAutocorrection()
       dlog(
         debugInputController,
         "** InputController FLAGCHANGED -handleEvent:client: with event: %@ / key: %d / modifier: %lu / client: %@",
