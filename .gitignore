@@ -18,6 +18,7 @@ Pods
 *xcworkspace*
 /build
 /dist
+/site/baram/dist/
 
 # Junk files on Mac OS X
 *.DS_Store
