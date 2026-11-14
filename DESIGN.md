@@ -2,9 +2,9 @@
 
 ## Source of truth
 
-Status: **Draft — product name and flowing B direction confirmed; final geometry proposed for review.**
+Status: **Draft — product name and wind-first mark direction confirmed; final geometry proposed for review.**
 Date: 2026-11-14.  
-Product: **바람 입력기 · Baram Input Method**. The local ad-hoc Baram build now has an independent app, input-source, defaults, and IMK identity; GureumChordLab remains installed only as a rollback path.
+Product: **바람 입력기 · Baram Input Method**. The local ad-hoc Baram build now has an independent app, input-source, defaults, and IMK identity; recoverable Lab backups remain, but Lab is no longer installed.
 
 Surfaces: macOS input-menu symbols, app icon, preferences, installer/readme, release materials, and the eight-page brand sheet at `docs/brand/baram/sheet.html`. PDF and 1200×750 page PNGs are generated under `docs/brand/baram/brand-sheet/`. The earlier one-page SVG is an overview study only.
 
@@ -31,7 +31,7 @@ Proposed personality: calm, precise, lightly poetic, dependable, responsive. A t
 
 Recommended line: **나의 바람대로, 한글이 흐르다.** Use it in brand/release material; ordinary settings should use direct instructions.
 
-The user-confirmed direction is **바람 궤적 B**: a slightly curved vertical stem and two inward wind curls form a Latin B first. The stacked counters can secondarily echo the Korean ㅂ, but the project does not claim ㅂ-first recognition. At 16–32 px the intended first reading is a clear B; at 128–1024 px the hand-drawn wind flow should become apparent. The stem ends align with the two bowls rather than protruding, avoiding a Bitcoin-like ₿ silhouette. This is an intent pending user recognition review, not a measured claim. Geometry is original and centrally defined in `docs/brand/baram/mark.mjs`; master and menu-size paths are separate.
+The user-confirmed direction is **바람 궤적 B**: three independent horizontal wind strokes read as wind first. The aligned left terminals and two stacked right-hand curls suggest a Latin B only on a second look. There is no vertical stem, so the mark avoids the earlier literal-B and ₿ silhouettes. This is an intent pending user recognition review, not a measured claim. Geometry is original and centrally defined in `docs/brand/baram/mark.mjs`; master and menu-size paths are separate.
 
 Trust comes from clear settings, preserved typing habits, accurate release claims, source/license provenance, tested rollback, and honest distinction between automatic reorder and physical chording. Avoid performance claims without measurements, official-successor language without agreement, historical artwork reuse, weather illustrations, metallic keyboard/cloud skeuomorphism, and decorative gradients.
 
@@ -67,7 +67,7 @@ Brand/readme hierarchy: name → one-line purpose → verified capabilities → 
 The system owns the input-source list. The app contributes only a compact native menu:
 
 ```text
-설정…
+설정                          ⌘,
 업데이트 확인…                 upstream updater capability only
 ────────────────
 도움말 및 지원                 native submenu
@@ -76,10 +76,10 @@ The system owns the input-source list. The app contributes only a compact native
     후원하기                   upstream donation capability only
     개발자 → 실험 버전 확인…   Debug upstream builds only
 ────────────────
-<bundle display name>에 관하여
+About
 ```
 
-Lab contributes Settings, Help & Support containing the fork's Issues and Source, and About. It does not inherit upstream website, help, donation, or update services. About uses the bundle's localized display name. Keep the existing InputController first-responder action routing and native keyboard, VoiceOver, submenu, and validation behavior. Use real NSMenu hierarchy without leading spaces in titles. Functional SF Symbols may appear on the top-level Settings/Update/Support/About items; submenu rows remain text-first.
+Lab contributes Settings, Help & Support containing the fork's Issues and Source, and About. It does not inherit upstream website, help, donation, or update services. About uses the bundle's localized display name. Baram's About metadata names Sionyuel first and retains explicit Gureum author/contributor attribution; upstream metadata remains unchanged. Keep the existing InputController first-responder action routing and native keyboard, VoiceOver, submenu, and validation behavior. Use real NSMenu hierarchy without leading spaces in titles. Functional SF Symbols may appear on the top-level Settings/Update/Support/About items; submenu rows remain text-first.
 
 `GureumMenuCapabilities` owns the product's valid destinations and updater capability; `GureumMenuBuilder` constructs app-owned menu items from that description. MainMenu.xib contains the delegate/outlet shell rather than a second static copy of those items.
 
@@ -105,6 +105,7 @@ Proposed brand tokens (not yet applied to production code):
 | `brand.night` | `#162623` | Dark brand surface |
 | `brand.mint` | `#A9E2CD` | Dark-surface mark/accent, night contrast 10.82:1 |
 | `brand.warm` | `#D9A15F` | Optional rare annotation/accent, night contrast 6.90:1; not error color |
+| `brand.roman` | `#7B4A24` | Roman input-source background; paper contrast 6.71:1 and clearly distinct from Hangul jade |
 
 AppKit controls continue to use `labelColor`, `secondaryLabelColor`, `controlBackgroundColor`, `separatorColor`, and the user's system accent. Do not replace error/warning/success semantics with brand colors. Color pair ratios use WCAG relative luminance and apply only to these exact opaque pairs.
 
@@ -122,7 +123,7 @@ Shape/elevation: native window chrome and stock `NSBox(.primary)` preference gro
 
 Motion: retain system menu/switch transitions. Respect Reduce Motion. No typing-time bounce, logo animation, or particle effects.
 
-Iconography: original **바람 궤적 B** mark; system SF Symbols for functional UI. Master geometry uses a 128-unit frame with 9-unit strokes, a slightly curved stem, an upper curl, and a roughly 10% wider lower curl. The small optical version uses 12-unit strokes (1.5 px at 16 px), a straight stem, simplified bowls, and short inner hooks; do not scale the master unchanged for the menu. Menu-bar assets are monochrome templates and must read on light/dark bars without a colored square. The primary app-icon study uses one paper-colored mark on jade; a warm lower curl is an optional large-scale study, never required for recognition. Keep at least 20% clear space around the mark. Do not add a separate wind illustration to the letter.
+Iconography: original **바람 궤적 B** mark; system SF Symbols for functional UI. Master geometry uses a 128-unit frame with 9-unit strokes and three open wind curls. The small optical version uses 11-unit strokes and simplified turns; do not scale the master unchanged for the menu. System input-source assets use a 3:2 badge at 24×16 px and 48×32 px: Hangul jade carries no label, `2`, `3`, `3F`, `390`, or `ROM`; Roman brown carries no label or `QW`. Every label shares one right-hand center axis. `390`, `ROM`, and `QW` are horizontally fitted to the same 54 px review-width without reducing vertical recognition. Menu-bar template symbols remain monochrome and must read on light/dark bars without a colored square. Keep at least 20% clear space around the standalone mark.
 
 `brand-sheet/recognition.png` compares the master, optical correction, a ₿ confusion reference, plain Latin B, and plain ㅂ at actual 16/18/32/128 px. It is a structural review grid, not a user study or proof of recall. Before approval, inspect the silhouette without a wordmark for B recognition, ₿ confusion, 3/ε confusion, and curl fill-in. Never claim recognition is established from geometry tests alone.
 
@@ -131,8 +132,8 @@ Iconography: original **바람 궤적 B** mark; system SF Symbols for functional
 | Component | Contract |
 |---|---|
 | Wordmark | Korean name primary; English descriptor secondary; keep “입력기” subordinate |
-| App icon | Flowing B made from a stem and two wind curls; direction approved, geometry pending visual approval and size testing |
-| Menu symbol | Menu-bar template is monochrome and optically simplified. System Settings input-source rows use a dedicated jade tile with a paper-colored B, while layout names preserve keyboard distinctions in text |
+| App icon | Three open wind strokes with a secondary B impression; direction approved, geometry pending visual approval and size testing |
+| Menu symbol | Menu-bar template is monochrome and optically simplified. System input-source rows use 3:2 jade or Roman-brown badges with layout labels, while the visible mode name remains the primary textual identifier |
 | Category navigation | App path: centered native preference toolbar with Input / Shortcuts / Advanced icons and fitted content height. prefPane fallback: native three-way segmented control |
 | Boolean setting | Native mini NSSwitch with VoiceOver name matching its visible row label; explanations belong to the group |
 | Value menu | Stock borderless regular NSPopUpButton with natural font/size and system-drawn arrow/hover/focus/type-select; no accessory style, custom cell, chip, or arrow overlay |
@@ -165,7 +166,7 @@ This is a macOS desktop input method. Preferences keep a 500 pt content width. T
 
 ## Content voice
 
-Use calm Korean with short, concrete labels. A setting title names the behavior; one secondary sentence explains the effect or compatibility target. “자동 순서 교정” is accurate for libhangul reorder; “물리적 동시입력” is reserved for verified key-hold grouping. Avoid “완벽한”, “가장 빠른”, or “모든 앱 지원” without evidence.
+Use calm Korean with short, concrete labels. A setting title names the behavior; one secondary sentence explains the effect or compatibility target. “모아치기” describes automatic reorder only. “세벌식 정석 조합” selects the dedicated 3F/390 combination tables that constrain compound vowels and final clusters; it is not physical chord capture. “물리적 동시입력” is reserved for verified key-hold grouping. Avoid “완벽한”, “가장 빠른”, or “모든 앱 지원” without evidence.
 
 Brand line proposal: **나의 바람대로, 한글이 흐르다.** Alternative short signature: **손끝의 바람, 글이 되다.** The line is a brand promise of intention, not a technical claim of perfect recognition.
 
@@ -186,7 +187,7 @@ Provenance wording for release review: “구름 입력기를 기반으로 새�
 
 ## Open questions
 
-- [ ] User: approve or revise final 바람 궤적 B geometry after actual-size/no-wordmark comparison; B-first reading and one-flow character are confirmed directions.
+- [ ] User: approve or revise final 바람 궤적 B geometry after actual-size/no-wordmark comparison; wind-first reading and secondary B impression are the confirmed directions.
 - [ ] Release owner: complete official trademark/name clearance and attempt contact with historical Baram developer; determines public naming/relationship language, not this draft's ability to be reviewed.
 - [x] Engineering: add independent Baram bundle/defaults/IMK/input-source identities and one-time Lab settings migration without removing either predecessor.
 - [ ] Engineering: prove or reject physical key-up delivery across required clients; determines feature language and architecture.

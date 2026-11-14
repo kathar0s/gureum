@@ -30,22 +30,63 @@ for (const [id, name, options] of [
 ]) {
   const svg = join(assets, `${name}.svg`);
   writeFileSync(svg, standalone(id, `바람 궤적 B ${name}`, options));
-  for (const size of name.includes('app-icon') ? [128, 1024] : [16, 32, 128]) {
+  for (const size of name.includes('app-icon') ? [128, 256, 512, 1024] : [16, 32, 128]) {
     execFileSync('rsvg-convert', ['-w', `${size}`, '-h', `${size}`, svg, '-o', join(assets, `${name}-${size}.png`)]);
   }
 }
-const inputSourceSVG = join(assets, 'baram-input-source-icon.svg');
-writeFileSync(inputSourceSVG, inputSourceIcon('바람 입력 소스 아이콘'));
-for (const size of [16, 32]) {
+const smallAppIconSVG = join(assets, 'baram-app-icon-concept-small.svg');
+writeFileSync(smallAppIconSVG, standalone(
+  'small', '바람 앱 아이콘 작은 크기 보정', { background: '#14675F', size: 128 }));
+for (const size of [16, 32, 64]) {
   execFileSync('rsvg-convert', [
-    '-w', `${size}`, '-h', `${size}`, inputSourceSVG,
-    '-o', join(assets, `baram-input-source-icon-${size}.png`),
+    '-w', `${size}`, '-h', `${size}`, smallAppIconSVG,
+    '-o', join(assets, `baram-app-icon-concept-${size}.png`),
   ]);
 }
-const inputSourceAsset = join(root, '../../../OSX/Assets.xcassets/baram.imageset');
-mkdirSync(inputSourceAsset, { recursive: true });
-copyFileSync(join(assets, 'baram-input-source-icon-16.png'), join(inputSourceAsset, 'baram.png'));
-copyFileSync(join(assets, 'baram-input-source-icon-32.png'), join(inputSourceAsset, 'baram@2x.png'));
+const appIconAsset = join(root, '../../../OSX/Assets.xcassets/BaramAppIcon.appiconset');
+for (const [filename, size] of [
+  ['icon_16x16.png', 16], ['icon_16x16@2x.png', 32],
+  ['icon_32x32.png', 32], ['icon_32x32@2x.png', 64],
+  ['icon_128x128.png', 128], ['icon_128x128@2x.png', 256],
+  ['icon_256x256.png', 256], ['icon_256x256@2x.png', 512],
+  ['icon_512x512.png', 512], ['icon_512x512@2x.png', 1024],
+]) {
+  copyFileSync(join(assets, `baram-app-icon-concept-${size}.png`), join(appIconAsset, filename));
+}
+const inputSourceVariants = [
+  { asset: 'baram', suffix: '', title: '한글 일반', label: '', background: '#14675F' },
+  { asset: 'baram2', suffix: '-2', title: '두벌식', label: '2', background: '#14675F' },
+  { asset: 'baram3', suffix: '-3', title: '세벌식', label: '3', background: '#14675F' },
+  { asset: 'baram3f', suffix: '-3f', title: '세벌식 최종', label: '3F', background: '#14675F' },
+  { asset: 'baram390', suffix: '-390', title: '세벌식 390', label: '390', background: '#14675F' },
+  { asset: 'baramrom', suffix: '-rom', title: '한글 로마자', label: 'ROM', background: '#14675F' },
+  { asset: 'barameng', suffix: '-english', title: '영문 일반', label: '', background: '#7B4A24' },
+  { asset: 'baramqw', suffix: '-qw', title: '쿼티', label: 'QW', background: '#7B4A24' },
+];
+const inputSourceContents = asset => JSON.stringify({
+  images: [
+    { idiom: 'universal', filename: `${asset}.png`, scale: '1x' },
+    { idiom: 'universal', filename: `${asset}@2x.png`, scale: '2x' },
+    { idiom: 'universal', scale: '3x' },
+  ],
+  info: { version: 1, author: 'xcode' },
+}, null, 2) + '\n';
+for (const variant of inputSourceVariants) {
+  const base = `baram-input-source-icon${variant.suffix}`;
+  const svg = join(assets, `${base}.svg`);
+  writeFileSync(svg, inputSourceIcon(`바람 ${variant.title} 입력 소스 아이콘`, variant));
+  for (const [width, height, suffix] of [[24, 16, '16'], [48, 32, '32'], [192, 128, 'preview']]) {
+    execFileSync('rsvg-convert', [
+      '-w', `${width}`, '-h', `${height}`, svg,
+      '-o', join(assets, `${base}-${suffix}.png`),
+    ]);
+  }
+  const assetDirectory = join(root, `../../../OSX/Assets.xcassets/${variant.asset}.imageset`);
+  mkdirSync(assetDirectory, { recursive: true });
+  copyFileSync(join(assets, `${base}-16.png`), join(assetDirectory, `${variant.asset}.png`));
+  copyFileSync(join(assets, `${base}-32.png`), join(assetDirectory, `${variant.asset}@2x.png`));
+  writeFileSync(join(assetDirectory, 'Contents.json'), inputSourceContents(variant.asset));
+}
 const prepared = readFileSync(join(root, 'sheet.html'), 'utf8')
   .replace('{{MARK_SYMBOLS}}', symbols())
   .replace('href="tokens.css"', 'href="../tokens.css"')

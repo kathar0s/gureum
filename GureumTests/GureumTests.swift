@@ -6,6 +6,7 @@
 //  Copyright © 2018 youknowone.org. All rights reserved.
 //
 
+import AppKit
 import Hangul
 import InputMethodKit
 import MASShortcut
@@ -1102,7 +1103,9 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
     let (_, child) = try form()
     let labels = descendants(child.view).compactMap { $0 as? NSTextField }.map(\.stringValue)
 
-    XCTAssertTrue(labels.contains("모아치기는 순서가 바뀐 낱자를 자동으로 조합합니다."))
+    XCTAssertTrue(
+      labels.contains(
+        "모아치기는 순서가 바뀐 낱자를 자동으로 조합합니다. 정석 조합은 세벌식 최종·390에서 이중모음과 겹받침을 해당 자판 규칙으로 제한합니다."))
     if !InputMethodIdentity.current.supportsPhysicalChording {
       XCTAssertFalse(labels.contains("실험 · 물리적 키 묶기"))
     }
@@ -1263,7 +1266,13 @@ class GureumMenuTests: XCTestCase {
       let identifier = try XCTUnwrap(item.identifier?.rawValue)
       XCTAssertNil(item.target, identifier)
       XCTAssertEqual(item.action.map(NSStringFromSelector), expected[identifier], identifier)
-      XCTAssertEqual(item.keyEquivalent, "")
+      if identifier == "preferences" {
+        XCTAssertEqual(item.keyEquivalent, ",")
+        XCTAssertEqual(item.keyEquivalentModifierMask, .command)
+      } else {
+        XCTAssertEqual(item.keyEquivalent, "")
+        XCTAssertEqual(item.keyEquivalentModifierMask, [])
+      }
     }
   }
 
@@ -1293,9 +1302,7 @@ class GureumMenuTests: XCTestCase {
 
     XCTAssertEqual(capabilities.displayName, "Custom Chord Lab")
     XCTAssertEqual(menu.title, "Custom Chord Lab")
-    XCTAssertEqual(
-      item(menu, identifier: "about")?.title,
-      "Custom Chord Lab에 관하여")
+    XCTAssertEqual(item(menu, identifier: "about")?.title, "About")
   }
 
   func testBlankDisplayNameFallsBackToBundleName() throws {
@@ -1381,7 +1388,7 @@ class InputMethodIdentityTests: XCTestCase {
     XCTAssertFalse(identity.supportsUpstreamUpdates)
   }
 
-  func testBaramInfoPlistUsesDedicatedInputSourceIcon() throws {
+  func testBaramInfoPlistUsesLayoutSpecificInputSourceIcons() throws {
     let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
       .deletingLastPathComponent()
     let plistURL = root.appendingPathComponent("OSX/Baram-Info.plist")
@@ -1389,22 +1396,74 @@ class InputMethodIdentityTests: XCTestCase {
     let plist = try XCTUnwrap(
       PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
     XCTAssertEqual(plist["CFBundleSignature"] as? String, "Barm")
+    XCTAssertEqual(
+      plist["NSHumanReadableCopyright"] as? String,
+      "Copyright © 2026 Sionyuel. Based on Gureum © 2011-2022 Jeong YunWon and contributors.")
+    XCTAssertEqual(
+      plist["CFBundleGetInfoString"] as? String,
+      "${VERSION}, Copyright © 2026 Sionyuel; based on Gureum © 2011-2022 Jeong YunWon and contributors"
+    )
+    let upstreamData = try Data(contentsOf: root.appendingPathComponent("OSX/Info.plist"))
+    let upstreamPlist = try XCTUnwrap(
+      PropertyListSerialization.propertyList(from: upstreamData, format: nil) as? [String: Any])
+    XCTAssertEqual(
+      upstreamPlist["NSHumanReadableCopyright"] as? String,
+      "Copyright 2011-2022 Jeong YunWon")
     let component = try XCTUnwrap(plist["ComponentInputModeDict"] as? [String: Any])
     let modes = try XCTUnwrap(component["tsInputModeListKey"] as? [String: [String: Any]])
     XCTAssertEqual(modes.count, GureumInputSource.allCases.count)
-    for mode in modes.values {
-      for key in [
-        "tsInputModeAlternateMenuIconFileKey", "tsInputModeMenuIconFileKey",
-        "tsInputModePaletteIconFileKey",
-      ] {
-        XCTAssertEqual(mode[key] as? String, "baram.png")
+    let menuIcons = [
+      "colemak": "barameng.png",
+      "dvorak": "barameng.png",
+      "han2": "baram2.png",
+      "han2classic": "baram2.png",
+      "han3-2011": "baram3.png",
+      "han3-2012": "baram3.png",
+      "han390": "baram390.png",
+      "han3classic": "baram3.png",
+      "han3final": "baram3f.png",
+      "han3finalnoshift": "baram3f.png",
+      "han3layout2": "baram3.png",
+      "han3noshift": "baram3.png",
+      "hanahnmatae": "baram.png",
+      "hanroman": "baramrom.png",
+      "qwerty": "baramqw.png",
+      "system": "barameng.png",
+    ]
+    XCTAssertEqual(Set(menuIcons.keys), Set(sourceSuffixes.map(\.1)))
+    for (suffix, menuIcon) in menuIcons {
+      let identifier = "com.sionyuel.inputmethod.Baram.\(suffix)"
+      let mode = try XCTUnwrap(modes[identifier], identifier)
+      XCTAssertEqual(mode["tsInputModeMenuIconFileKey"] as? String, menuIcon, identifier)
+      let fallbackIcon =
+        ["han390", "han3final", "han3finalnoshift"].contains(suffix)
+        ? "baram3.png" : menuIcon
+      XCTAssertEqual(
+        mode["tsInputModeAlternateMenuIconFileKey"] as? String, fallbackIcon, identifier)
+      XCTAssertEqual(mode["tsInputModePaletteIconFileKey"] as? String, fallbackIcon, identifier)
+    }
+
+    for assetName in Set(menuIcons.values).union(["baram3.png"]) {
+      let stem = String(assetName.dropLast(4))
+      let asset = root.appendingPathComponent("OSX/Assets.xcassets/\(stem).imageset")
+      let contents = try Data(contentsOf: asset.appendingPathComponent("Contents.json"))
+      XCTAssertNoThrow(try JSONSerialization.jsonObject(with: contents), stem)
+      for (filename, width, height) in [(assetName, 24, 16), ("\(stem)@2x.png", 48, 32)] {
+        let data = try Data(contentsOf: asset.appendingPathComponent(filename))
+        let image = try XCTUnwrap(NSBitmapImageRep(data: data), filename)
+        XCTAssertEqual(image.pixelsWide, width, filename)
+        XCTAssertEqual(image.pixelsHigh, height, filename)
       }
     }
-    let asset = root.appendingPathComponent("OSX/Assets.xcassets/baram.imageset")
-    XCTAssertTrue(
-      FileManager.default.fileExists(atPath: asset.appendingPathComponent("baram.png").path))
-    XCTAssertTrue(
-      FileManager.default.fileExists(atPath: asset.appendingPathComponent("baram@2x.png").path))
+
+    let appIcon = root.appendingPathComponent("OSX/Assets.xcassets/BaramAppIcon.appiconset")
+    let brandAssets = root.appendingPathComponent("docs/brand/baram/assets")
+    XCTAssertEqual(
+      try Data(contentsOf: appIcon.appendingPathComponent("icon_16x16.png")),
+      try Data(contentsOf: brandAssets.appendingPathComponent("baram-app-icon-concept-16.png")))
+    XCTAssertEqual(
+      try Data(contentsOf: appIcon.appendingPathComponent("icon_512x512@2x.png")),
+      try Data(contentsOf: brandAssets.appendingPathComponent("baram-app-icon-concept-1024.png")))
   }
 
   func testUpstreamInputSourceIdentifiersRetainTheirExistingValues() throws {

@@ -73,8 +73,9 @@ struct GureumMenuBuilder {
     let menu = NSMenu(title: capabilities.displayName)
     menu.addItem(
       item(
-        "설정…", action: #selector(InputController.showPreferencesWindow(_:)),
-        identifier: "preferences", symbol: "gearshape"))
+        "설정", action: #selector(InputController.showPreferencesWindow(_:)),
+        identifier: "preferences", symbol: "gearshape", keyEquivalent: ",",
+        modifierMask: .command))
     if capabilities.supportsUpdates {
       menu.addItem(
         item(
@@ -127,16 +128,18 @@ struct GureumMenuBuilder {
     menu.addItem(.separator())
     menu.addItem(
       item(
-        "\(capabilities.displayName)에 관하여",
+        "About",
         action: #selector(InputController.showStandardAboutPanel(_:)), identifier: "about",
         symbol: "info.circle"))
     return menu
   }
 
   private func item(
-    _ title: String, action: Selector?, identifier: String, symbol: String? = nil
+    _ title: String, action: Selector?, identifier: String, symbol: String? = nil,
+    keyEquivalent: String = "", modifierMask: NSEvent.ModifierFlags = []
   ) -> NSMenuItem {
-    let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+    let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
+    item.keyEquivalentModifierMask = modifierMask
     // InputMethodKit routes these actions through the active InputController responder.
     item.target = nil
     item.identifier = NSUserInterfaceItemIdentifier(identifier)

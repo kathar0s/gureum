@@ -9,7 +9,7 @@
 	<key>CFBundleExecutable</key>
 	<string>${EXECUTABLE_NAME}</string>
 	<key>CFBundleGetInfoString</key>
-	<string>${VERSION}, Copyright 2011-2022 Jeong YunWon</string>
+	<string>${VERSION}, Copyright © 2026 Sionyuel; based on Gureum © 2011-2022 Jeong YunWon and contributors</string>
 	<key>CFBundleIconFile</key>
 	<string></string>
 	<key>CFBundleIdentifier</key>
@@ -39,15 +39,15 @@
 				<key>TISIntendedLanguage</key>
 				<string>en</string>
 				<key>tsInputModeAlternateMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>barameng.png</string>
 				<key>tsInputModeDefaultStateKey</key>
 				<false/>
 				<key>tsInputModeIsVisibleKey</key>
 				<true/>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>barameng.png</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>baram.png</string>
+				<string>barameng.png</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeScriptKey</key>
@@ -62,15 +62,15 @@
 				<key>TISIntendedLanguage</key>
 				<string>en</string>
 				<key>tsInputModeAlternateMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>barameng.png</string>
 				<key>tsInputModeDefaultStateKey</key>
 				<false/>
 				<key>tsInputModeIsVisibleKey</key>
 				<true/>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>barameng.png</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>baram.png</string>
+				<string>barameng.png</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeScriptKey</key>
@@ -87,15 +87,15 @@
 				<key>TISIntendedLanguage</key>
 				<string>ko</string>
 				<key>tsInputModeAlternateMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram2.png</string>
 				<key>tsInputModeDefaultStateKey</key>
 				<true/>
 				<key>tsInputModeIsVisibleKey</key>
 				<true/>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram2.png</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram2.png</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeScriptKey</key>
@@ -110,15 +110,15 @@
 				<key>TISIntendedLanguage</key>
 				<string>ko</string>
 				<key>tsInputModeAlternateMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram2.png</string>
 				<key>tsInputModeDefaultStateKey</key>
 				<false/>
 				<key>tsInputModeIsVisibleKey</key>
 				<true/>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram2.png</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram2.png</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<false/>
 				<key>tsInputModeScriptKey</key>
@@ -133,15 +133,15 @@
 				<key>TISIntendedLanguage</key>
 				<string>ko</string>
 				<key>tsInputModeAlternateMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModeDefaultStateKey</key>
 				<false/>
 				<key>tsInputModeIsVisibleKey</key>
 				<true/>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<false/>
 				<key>tsInputModeScriptKey</key>
@@ -156,15 +156,15 @@
 				<key>TISIntendedLanguage</key>
 				<string>ko</string>
 				<key>tsInputModeAlternateMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModeDefaultStateKey</key>
 				<false/>
 				<key>tsInputModeIsVisibleKey</key>
 				<true/>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<false/>
 				<key>tsInputModeScriptKey</key>
@@ -179,15 +179,15 @@
 				<key>TISIntendedLanguage</key>
 				<string>ko</string>
 				<key>tsInputModeAlternateMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModeDefaultStateKey</key>
 				<false/>
 				<key>tsInputModeIsVisibleKey</key>
 				<true/>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram390.png</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<false/>
 				<key>tsInputModeScriptKey</key>
@@ -202,15 +202,15 @@
 				<key>TISIntendedLanguage</key>
 				<string>ko</string>
 				<key>tsInputModeAlternateMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModeDefaultStateKey</key>
 				<false/>
 				<key>tsInputModeIsVisibleKey</key>
 				<true/>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<false/>
 				<key>tsInputModeScriptKey</key>
@@ -227,15 +227,15 @@
 				<key>TISIntendedLanguage</key>
 				<string>ko</string>
 				<key>tsInputModeAlternateMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModeDefaultStateKey</key>
 				<false/>
 				<key>tsInputModeIsVisibleKey</key>
 				<true/>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3f.png</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<false/>
 				<key>tsInputModeScriptKey</key>
@@ -252,15 +252,15 @@
 				<key>TISIntendedLanguage</key>
 				<string>ko</string>
 				<key>tsInputModeAlternateMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModeDefaultStateKey</key>
 				<false/>
 				<key>tsInputModeIsVisibleKey</key>
 				<true/>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3f.png</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<false/>
 				<key>tsInputModeScriptKey</key>
@@ -277,15 +277,15 @@
 				<key>TISIntendedLanguage</key>
 				<string>ko</string>
 				<key>tsInputModeAlternateMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModeDefaultStateKey</key>
 				<false/>
 				<key>tsInputModeIsVisibleKey</key>
 				<true/>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<false/>
 				<key>tsInputModeScriptKey</key>
@@ -300,15 +300,15 @@
 				<key>TISIntendedLanguage</key>
 				<string>ko</string>
 				<key>tsInputModeAlternateMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModeDefaultStateKey</key>
 				<false/>
 				<key>tsInputModeIsVisibleKey</key>
 				<true/>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>baram.png</string>
+				<string>baram3.png</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<false/>
 				<key>tsInputModeScriptKey</key>
@@ -346,15 +346,15 @@
 				<key>TISIntendedLanguage</key>
 				<string>ko</string>
 				<key>tsInputModeAlternateMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baramrom.png</string>
 				<key>tsInputModeDefaultStateKey</key>
 				<false/>
 				<key>tsInputModeIsVisibleKey</key>
 				<true/>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baramrom.png</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>baram.png</string>
+				<string>baramrom.png</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<false/>
 				<key>tsInputModeScriptKey</key>
@@ -371,15 +371,15 @@
 				<key>TISIntendedLanguage</key>
 				<string>en</string>
 				<key>tsInputModeAlternateMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baramqw.png</string>
 				<key>tsInputModeDefaultStateKey</key>
 				<false/>
 				<key>tsInputModeIsVisibleKey</key>
 				<true/>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>baramqw.png</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>baram.png</string>
+				<string>baramqw.png</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeScriptKey</key>
@@ -394,15 +394,15 @@
 				<key>TISIntendedLanguage</key>
 				<string>en</string>
 				<key>tsInputModeAlternateMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>barameng.png</string>
 				<key>tsInputModeDefaultStateKey</key>
 				<true/>
 				<key>tsInputModeIsVisibleKey</key>
 				<true/>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>baram.png</string>
+				<string>barameng.png</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>baram.png</string>
+				<string>barameng.png</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeScriptKey</key>
@@ -467,7 +467,7 @@
 		<true/>
 	</dict>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright 2011-2022 Jeong YunWon</string>
+	<string>Copyright © 2026 Sionyuel. Based on Gureum © 2011-2022 Jeong YunWon and contributors.</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>

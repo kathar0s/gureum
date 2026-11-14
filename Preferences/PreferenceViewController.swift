@@ -245,7 +245,9 @@ final class PreferenceViewController: NSViewController {
             "` 키로 원화 기호 입력",
             control: settingSwitch(
               hangulWonCurrencySymbolForBackQuoteButton, label: "` 키로 원화 기호 입력")),
-        ], explanation: helperText("모아치기는 순서가 바뀐 낱자를 자동으로 조합합니다.")),
+        ],
+        explanation: helperText(
+          "모아치기는 순서가 바뀐 낱자를 자동으로 조합합니다. 정석 조합은 세벌식 최종·390에서 이중모음과 겹받침을 해당 자판 규칙으로 제한합니다.")),
       section(
         "로마자 입력",
         rows: [
