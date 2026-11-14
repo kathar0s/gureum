@@ -1094,6 +1094,10 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
     let app = ModerateApp()
     app.controller.receiver.romanAutocorrectionAvailable = { true }
     app.controller.receiver.romanAutocorrectionSecureInput = { secure }
+    app.controller.receiver.romanAutocorrectionKnownEnglishWord = { word in
+      ["hello", "world", "swift", "apple", "yes", "if", "or", "it", "he", "me"]
+        .contains(word.lowercased())
+    }
     if enabled, let identifier = app.client.bundleIdentifier() {
       Configuration.shared.hangulLayoutAutocorrectionApplications = [identifier: "Test app"]
     }
@@ -1105,10 +1109,16 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
 
   func testSuccessfulSebeolsikCompositionIsTheConversionCriterion() {
     XCTAssertEqual(RomanLayoutAutocorrector.convert("jfshea", keyboard: "3f"), "안녕")
+    XCTAssertEqual(RomanLayoutAutocorrector.convert("jfs", keyboard: "3f"), "안")
+    XCTAssertEqual(RomanLayoutAutocorrector.convert("j/r", keyboard: "3f"), "왜")
+    for word in ["if", "or", "it", "he", "me"] {
+      XCTAssertNil(RomanLayoutAutocorrector.convert(word, keyboard: "3f"))
+    }
     XCTAssertEqual(
       RomanLayoutAutocorrector.convert("jfsheamfncj4", keyboard: "3f"), "안녕하세요")
+    XCTAssertEqual(RomanLayoutAutocorrector.convert("jdktq;/f", keyboard: "3f"), "이것봐")
     XCTAssertEqual(RomanLayoutAutocorrector.convert("jfshea", keyboard: "39"), "안녕")
-    for keys in ["hello", "world", "jfs", "jfsheaz", "Jfshea", "jfshea1"] {
+    for keys in ["hello", "world", "jfsheaz", "Jfshea", "jfshea1"] {
       XCTAssertNil(RomanLayoutAutocorrector.convert(keys, keyboard: "3f"), keys)
     }
     XCTAssertNil(RomanLayoutAutocorrector.convert("jfshea", keyboard: "2-full"))
@@ -1126,6 +1136,14 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
       XCTAssertEqual(app.client.string, "안녕" + boundary)
       XCTAssertTrue(app.controller.receiver.composer.inputMode.hasSuffix("han3final"))
     }
+  }
+
+  func testSingleCompleteSyllableConvertsAtTheBoundary() {
+    let app = app()
+    app.inputKeys("j/r")
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, "왜 ")
+    XCTAssertTrue(app.controller.receiver.composer.inputMode.hasSuffix("han3final"))
   }
 
   func testNumberRowKeysCanCompleteAThreeSetWord() {
@@ -1150,6 +1168,24 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
     app.inputKeys("i9twld")
     app.inputText(" ", key: .space)
     XCTAssertEqual(app.client.string, "이게 뭘지 ")
+  }
+
+  func testSuccessfulCorrectionKeepsALongerFollowingPhraseInHangul() {
+    let app = app()
+    app.inputKeys("jdkc")
+    app.inputText(" ", key: .space)
+    for keys in ["lfwu/dhgs", "keajbuv", "jd2hgsuc"] {
+      app.inputKeys(keys)
+      app.inputText(" ", key: .space)
+    }
+    XCTAssertEqual(app.client.string, "이게 잘되는 경우도 있는데 ")
+  }
+
+  func testThreeSetPunctuationKeysCanFormACompleteWord() {
+    let app = app()
+    app.inputKeys("jdktq;/f")
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, "이것봐 ")
   }
 
   func testShiftFlagChangesDoNotDiscardThePendingThreeSetWord() {
@@ -1181,11 +1217,11 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
 
   func testOrdinaryEnglishAndIncompleteJamoRemainRoman() {
     let app = app()
-    for word in ["hello", "world", "swift", "apple", "jfs"] {
+    for word in ["hello", "world", "swift", "apple", "yes", "if", "or", "it", "he", "me"] {
       app.inputKeys(word)
       app.inputText(" ", key: .space)
     }
-    XCTAssertEqual(app.client.string, "hello world swift apple jfs ")
+    XCTAssertEqual(app.client.string, "hello world swift apple yes if or it he me ")
   }
 
   func testFeatureIsOffWithoutAnAllowedApplication() {
@@ -1323,6 +1359,20 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
 
     Configuration.shared.hangulLayoutAutocorrectionAllApplications = true
     XCTAssertTrue(Configuration.shared.usesHangulLayoutAutocorrection(for: "com.example.Three"))
+    XCTAssertFalse(Configuration.shared.usesHangulLayoutAutocorrection(for: nil))
+  }
+
+  func testClientBundleIdentifierFallsBackToTheFrontmostApplicationSafely() {
+    XCTAssertEqual(
+      InputReceiver.autocorrectionBundleIdentifier(
+        client: nil, frontmostApplication: "sh.paseo.desktop"),
+      "sh.paseo.desktop")
+    XCTAssertEqual(
+      InputReceiver.autocorrectionBundleIdentifier(
+        client: "com.1password.1password", frontmostApplication: "sh.paseo.desktop"),
+      "com.1password.1password")
+    XCTAssertNil(
+      InputReceiver.autocorrectionBundleIdentifier(client: nil, frontmostApplication: nil))
   }
 
   func testStateTrackerRejectsSelectionMarkedTextModifiersAndClientChanges() {

@@ -6,6 +6,7 @@
 //  Copyright © 2018 youknowone.org. All rights reserved.
 //
 
+import AppKit
 import Foundation
 import Hangul
 import InputMethodKit
@@ -40,7 +41,8 @@ struct RomanLayoutAutocorrector {
   mutating func consider(
     key: KeyCode, modifiers: NSEvent.ModifierFlags, output: String?, selection: NSRange,
     marked: NSRange, client: ObjectIdentifier, mode: String, keyboard: String,
-    enabled: Bool, secureInput: Bool, read: (NSRange) -> String?
+    enabled: Bool, secureInput: Bool, isKnownRomanWord: (String) -> Bool = { _ in false },
+    read: (NSRange) -> String?
   ) -> Replacement? {
     guard enabled, !secureInput, (0...(Int.max - 64)).contains(selection.location),
       selection.length == 0,
@@ -67,7 +69,9 @@ struct RomanLayoutAutocorrector {
     // Punctuation may belong to a URL, identifier, or a shell command.
     if key == .space || key == .return || key == .tab {
       defer { reset() }
-      guard let start, let converted = Self.convert(physicalKeys, keyboard: keyboard) else {
+      guard let start, !isKnownRomanWord(romanOutput),
+        let converted = Self.convert(physicalKeys, keyboard: keyboard)
+      else {
         return nil
       }
       return Replacement(
@@ -106,7 +110,7 @@ struct RomanLayoutAutocorrector {
 
   static func convert(_ keys: String, keyboard: String) -> String? {
     let supported = ["3f", "39", "3fs", "39s", "3s", "32", "3gs", "3-2011", "3-2012", "ahn"]
-    guard supported.contains(keyboard), (4...64).contains(keys.count),
+    guard supported.contains(keyboard), (3...64).contains(keys.count),
       keys.unicodeScalars.allSatisfy({ (33...126).contains($0.value) }),
       let context = HGInputContext(keyboardIdentifier: keyboard)
     else { return nil }
@@ -117,7 +121,7 @@ struct RomanLayoutAutocorrector {
       result += representableString(ucsString: context.commitUCSString)
     }
     result += representableString(ucsString: context.flushUCSString())
-    guard result.unicodeScalars.count >= 2,
+    guard !result.isEmpty,
       result.unicodeScalars.allSatisfy({ (0xAC00...0xD7A3).contains($0.value) })
     else { return nil }
     return result
@@ -140,9 +144,28 @@ public class InputReceiver: InputTextDelegate {
   var romanAutocorrectionSecureInput: () -> Bool = {
     PhysicalKeyEventSource.shared.secureInputEnabled
   }
+  var romanAutocorrectionKnownEnglishWord: (String) -> Bool = { word in
+    guard !word.isEmpty,
+      word.unicodeScalars.allSatisfy({
+        (65...90).contains($0.value) || (97...122).contains($0.value)
+      })
+    else { return false }
+    let range = NSSpellChecker.shared.checkSpelling(
+      of: word, startingAt: 0, language: "en_US", wrap: false,
+      inSpellDocumentWithTag: 0, wordCount: nil)
+    return range.location == NSNotFound
+  }
 
   func resetRomanAutocorrection() {
     romanLayoutAutocorrector.reset()
+  }
+
+  static func autocorrectionBundleIdentifier(
+    client: String?, frontmostApplication: String?
+  ) -> String? {
+    if let client, !client.isEmpty { return client }
+    if let frontmostApplication, !frontmostApplication.isEmpty { return frontmostApplication }
+    return nil
   }
 
   private func autocorrectRomanWord(
@@ -162,13 +185,17 @@ public class InputReceiver: InputTextDelegate {
     let keyboard = effectiveHangulKeyboardIdentifier(
       source.keyboardIdentifier,
       strictCombinationRule: configuration.hangulForceStrictCombinationRule)
+    let bundleIdentifier = Self.autocorrectionBundleIdentifier(
+      client: client.bundleIdentifier(),
+      frontmostApplication: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
     let replacement = romanLayoutAutocorrector.consider(
       key: key, modifiers: modifiers, output: output, selection: client.selectedRange(),
       marked: client.markedRange(), client: ObjectIdentifier(client as AnyObject),
       mode: composer.inputMode, keyboard: keyboard,
       enabled: romanAutocorrectionAvailable()
-        && configuration.usesHangulLayoutAutocorrection(for: client.bundleIdentifier()),
+        && configuration.usesHangulLayoutAutocorrection(for: bundleIdentifier),
       secureInput: romanAutocorrectionSecureInput(),
+      isKnownRomanWord: romanAutocorrectionKnownEnglishWord,
       read: { client.attributedSubstring(from: $0)?.string })
     if let replacement {
       client.insertText(replacement.converted, replacementRange: replacement.range)
