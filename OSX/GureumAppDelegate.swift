@@ -65,7 +65,7 @@ class GureumAppDelegate: NSObject, NSApplicationDelegate, GureumApplicationDeleg
       notification.informativeText = "이 버전은 디버그 빌드입니다. 키 입력이 로그로 남을 수 있어 안전하지 않습니다."
       notificationCenter.deliver(notification)
       // Fabric.with([Answers.self])
-      preferencesWindow.showWindow(nil)
+      DispatchQueue.main.async { presentPreferencesWindow() }
     #else
       // Fabric.with([Crashlytics.self, Answers.self])
     #endif
@@ -101,8 +101,12 @@ class GureumAppDelegate: NSObject, NSApplicationDelegate, GureumApplicationDeleg
   func applicationShouldHandleReopen(
     _: NSApplication, hasVisibleWindows _: Bool
   ) -> Bool {
-    NSApp.activate(ignoringOtherApps: true)
-    preferencesWindow.showWindow(nil)
+    presentPreferencesWindow()
+    return true
+  }
+
+  func applicationOpenUntitledFile(_: NSApplication) -> Bool {
+    presentPreferencesWindow()
     return true
   }
 }

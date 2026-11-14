@@ -14,6 +14,12 @@ let preferencesWindow: NSWindowController =
   NSStoryboard(name: "Configuration", bundle: Bundle.main).instantiateInitialController()
   as! NSWindowController
 
+func presentPreferencesWindow() {
+  NSApp.activate(ignoringOtherApps: true)
+  preferencesWindow.showWindow(nil)
+  preferencesWindow.window?.makeKeyAndOrderFront(nil)
+}
+
 /// The destinations this product can actually support. Fork products never inherit upstream services.
 struct GureumMenuCapabilities {
   let displayName: String
@@ -182,8 +188,7 @@ extension InputController {
   }
 
   @IBAction func showPreferencesWindow(_: Any) {
-    NSApp.activate(ignoringOtherApps: true)
-    preferencesWindow.showWindow(nil)
+    presentPreferencesWindow()
   }
 
   private func checkVersion(mode: UpdateMode) {

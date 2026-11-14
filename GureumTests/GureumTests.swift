@@ -88,6 +88,16 @@ class GureumTests: XCTestCase {
     preferencesWindow.close()
   }
 
+  func testOpeningTheRunningInputMethodShowsPreferencesAgain() {
+    preferencesWindow.close()
+    let delegate = GureumAppDelegate()
+
+    XCTAssertTrue(delegate.applicationOpenUntitledFile(NSApp))
+    XCTAssertTrue(preferencesWindow.window?.isVisible == true)
+
+    preferencesWindow.close()
+  }
+
   func testNotifyUpdate() {
     let data = """
       {
