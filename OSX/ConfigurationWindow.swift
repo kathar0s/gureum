@@ -55,7 +55,7 @@ final class ConfiguraionWindowController: NSWindowController, NSToolbarDelegate 
     else { return }
     controller.selectSettingsSection(at: index)
     window.title = "\(controller.settingsSectionTitles[index]) 설정"
-    let contentSize = NSSize(width: 500, height: controller.preferredContentHeight(for: index))
+    let contentSize = NSSize(width: 500, height: controller.preferredWindowContentHeight())
     let currentTop = window.frame.maxY
     let contentRect = NSRect(origin: .zero, size: contentSize)
     var frame = window.frameRect(forContentRect: contentRect)

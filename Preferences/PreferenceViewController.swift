@@ -1027,6 +1027,10 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
     return min(max(300, document.fittingSize.height + 32), 680)
   }
 
+  func preferredWindowContentHeight() -> CGFloat {
+    sectionTitles.indices.map(preferredContentHeight(for:)).max() ?? 340
+  }
+
   @objc private func settingSwitchChanged(_ sender: NSSwitch) {
     guard let backing = switchBindings[sender], let action = backing.action else { return }
     backing.state = sender.state

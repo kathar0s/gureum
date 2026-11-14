@@ -1134,6 +1134,8 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
   func testAdvancedPageFitsWithoutReachingTheScrollHeightCap() throws {
     let (_, child) = try form()
     XCTAssertLessThan(child.preferredContentHeight(for: 2), 680)
+    let pageHeights = (0..<3).map(child.preferredContentHeight(for:))
+    XCTAssertEqual(child.preferredWindowContentHeight(), pageHeights.max())
   }
 
   func testGroupsUsePrimaryBoxesAndMiniSwitches() throws {
