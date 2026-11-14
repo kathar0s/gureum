@@ -437,13 +437,13 @@ extension InputController {  // IMKServerInputHandleEvent
       dlog(debugLogging, "LOGGING::PROCESSED::\(result)")
       return result.processed
     case .flagsChanged:
-      receiver.resetRomanAutocorrection()
       dlog(
         debugInputController,
         "** InputController FLAGCHANGED -handleEvent:client: with event: %@ / key: %d / modifier: %lu / client: %@",
         event, -1, event.modifierFlags.rawValue, client.bundleIdentifier() ?? "(no client bundle)")
       let changed = lastFlags.symmetricDifference(event.modifierFlags)
       if !changed.intersection([.command, .control, .option, .function, .capsLock]).isEmpty {
+        receiver.resetRomanAutocorrection()
         chordCoordinator?.flushBoundary(.command)
       }
       lastFlags = event.modifierFlags

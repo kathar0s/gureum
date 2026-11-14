@@ -1105,6 +1105,8 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
 
   func testSuccessfulSebeolsikCompositionIsTheConversionCriterion() {
     XCTAssertEqual(RomanLayoutAutocorrector.convert("jfshea", keyboard: "3f"), "안녕")
+    XCTAssertEqual(
+      RomanLayoutAutocorrector.convert("jfsheamfncj4", keyboard: "3f"), "안녕하세요")
     XCTAssertEqual(RomanLayoutAutocorrector.convert("jfshea", keyboard: "39"), "안녕")
     for keys in ["hello", "world", "jfs", "jfsheaz", "Jfshea", "jfshea1"] {
       XCTAssertNil(RomanLayoutAutocorrector.convert(keys, keyboard: "3f"), keys)
@@ -1124,6 +1126,30 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
       XCTAssertEqual(app.client.string, "안녕" + boundary)
       XCTAssertTrue(app.controller.receiver.composer.inputMode.hasSuffix("system"))
     }
+  }
+
+  func testNumberRowKeysCanCompleteAThreeSetWord() {
+    let app = app()
+    app.inputKeys("jfsheamfncj4")
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, "안녕하세요 ")
+  }
+
+  func testShiftFlagChangesDoNotDiscardThePendingThreeSetWord() {
+    let app = app()
+    func sendShiftFlags(_ flags: NSEvent.ModifierFlags) {
+      let event = NSEvent.keyEvent(
+        with: .flagsChanged, location: .zero, modifierFlags: flags, timestamp: 0,
+        windowNumber: 0, context: nil, characters: "", charactersIgnoringModifiers: "",
+        isARepeat: false, keyCode: UInt16(KeyCode.shift.rawValue))!
+      _ = app.controller.handle(event, client: app.client)
+    }
+    app.inputKeys("jfs")
+    sendShiftFlags(.shift)
+    sendShiftFlags([])
+    app.inputKeys("hea")
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, "안녕 ")
   }
 
   func testOnlyTheTypedWordRangeIsReplacedAfterUnicodeText() {
@@ -1175,7 +1201,7 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
     XCTAssertEqual(app.client.string, "jfshea ")
   }
 
-  func testDigitsUppercaseAndPunctuationPreventSuffixConversion() {
+  func testNoncomposingPrefixesAndPunctuationPreventSuffixConversion() {
     let app = app()
     for word in ["1jfshea", "Jjfshea", "/jfshea", "jfshea.com"] {
       app.inputKeys(word)
@@ -1313,7 +1339,7 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
   }
 
   func testModifierKeyAndExplicitBoundaryResetDiscardThePendingWord() {
-    for modifier in [NSEvent.ModifierFlags.command, .control, .option, .shift, .capsLock] {
+    for modifier in [NSEvent.ModifierFlags.command, .control, .option, .capsLock] {
       let app = app()
       app.inputKeys("jfshea")
       app.inputKey(.ansiX, modifiers: modifier)

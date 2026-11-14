@@ -45,7 +45,7 @@ struct RomanLayoutAutocorrector {
     guard enabled, !secureInput, (0...(Int.max - 64)).contains(selection.location),
       selection.length == 0,
       marked.length == 0,
-      modifiers.intersection([.shift, .capsLock, .command, .control, .option, .function]).isEmpty
+      modifiers.intersection([.capsLock, .command, .control, .option, .function]).isEmpty
     else {
       reset(suppressUntilBoundary: true)
       return nil
@@ -75,8 +75,9 @@ struct RomanLayoutAutocorrector {
         converted: converted)
     }
 
-    guard keyMapLower.indices.contains(key.rawValue),
-      let physical = keyMapLower[key.rawValue], Self.isLowercaseASCII(physical),
+    let physicalMap = modifiers.contains(.shift) ? keyMapUpper : keyMapLower
+    guard physicalMap.indices.contains(key.rawValue),
+      let physical = physicalMap[key.rawValue], Self.isPrintableASCII(physical),
       let output, output.unicodeScalars.count == 1,
       output.unicodeScalars.allSatisfy({ (33...126).contains($0.value) }), physicalKeys.count < 64
     else {
@@ -106,7 +107,7 @@ struct RomanLayoutAutocorrector {
   static func convert(_ keys: String, keyboard: String) -> String? {
     let supported = ["3f", "39", "3fs", "39s", "3s", "32", "3gs", "3-2011", "3-2012", "ahn"]
     guard supported.contains(keyboard), (4...64).contains(keys.count),
-      keys.unicodeScalars.allSatisfy({ (97...122).contains($0.value) }),
+      keys.unicodeScalars.allSatisfy({ (33...126).contains($0.value) }),
       let context = HGInputContext(keyboardIdentifier: keyboard)
     else { return nil }
     context.setOption(HANGUL_IC_OPTION_AUTO_REORDER, value: false)
@@ -122,9 +123,9 @@ struct RomanLayoutAutocorrector {
     return result
   }
 
-  private static func isLowercaseASCII(_ value: String) -> Bool {
+  private static func isPrintableASCII(_ value: String) -> Bool {
     value.unicodeScalars.count == 1
-      && value.unicodeScalars.allSatisfy { (97...122).contains($0.value) }
+      && value.unicodeScalars.allSatisfy { (33...126).contains($0.value) }
   }
 }
 
