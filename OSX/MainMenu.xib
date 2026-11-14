@@ -17,65 +17,7 @@
                 <outlet property="menu" destination="538" id="544"/>
             </connections>
         </customObject>
-        <menu id="538">
-            <items>
-                <menuItem title="구름 입력기에 관하여" id="539">
-                    <modifierMask key="keyEquivalentModifierMask"/>
-                    <connections>
-                        <action selector="showStandardAboutPanel:" target="-1" id="yba-6W-HBg"/>
-                    </connections>
-                </menuItem>
-                <menuItem title="환경설정..." id="b3F-HH-DpK">
-                    <modifierMask key="keyEquivalentModifierMask"/>
-                    <connections>
-                        <action selector="showPreferencesWindow:" target="-1" id="yCC-7G-ltn"/>
-                    </connections>
-                </menuItem>
-                <menuItem title="업데이트 확인" id="557">
-                    <modifierMask key="keyEquivalentModifierMask"/>
-                    <connections>
-                        <action selector="checkRecentVersion:" target="-1" id="YEc-yG-BVR"/>
-                    </connections>
-                </menuItem>
-                <menuItem title="  최신 실험 버전 확인" id="rQW-rj-VR5">
-                    <modifierMask key="keyEquivalentModifierMask"/>
-                    <connections>
-                        <action selector="checkExperimentalVersion:" target="-1" id="Dqw-TI-1yI"/>
-                    </connections>
-                </menuItem>
-                <menuItem isSeparatorItem="YES" id="561"/>
-                <menuItem title="웹사이트..." id="555">
-                    <modifierMask key="keyEquivalentModifierMask"/>
-                    <connections>
-                        <action selector="openWebsite:" target="-1" id="eec-B8-qkM"/>
-                    </connections>
-                </menuItem>
-                <menuItem title="  도움말..." id="553">
-                    <modifierMask key="keyEquivalentModifierMask"/>
-                    <connections>
-                        <action selector="openWebsiteHelp:" target="-1" id="VZu-lL-IGx"/>
-                    </connections>
-                </menuItem>
-                <menuItem title="  버그 알리기..." id="564">
-                    <modifierMask key="keyEquivalentModifierMask"/>
-                    <connections>
-                        <action selector="openWebsiteIssues:" target="-1" id="PPJ-ho-kct"/>
-                    </connections>
-                </menuItem>
-                <menuItem title="  소스 코드..." id="562">
-                    <modifierMask key="keyEquivalentModifierMask"/>
-                    <connections>
-                        <action selector="openWebsiteSource:" target="-1" id="MXc-ok-c68"/>
-                    </connections>
-                </menuItem>
-                <menuItem title="  후원하기..." id="3LO-k7-fXJ">
-                    <modifierMask key="keyEquivalentModifierMask"/>
-                    <connections>
-                        <action selector="openWebsiteDonation:" target="-1" id="UW3-RT-XwB"/>
-                    </connections>
-                </menuItem>
-            </items>
-            <point key="canvasLocation" x="139" y="152"/>
-        </menu>
+        <!-- App-owned items are built from product capabilities after outlet decoding. -->
+        <menu id="538"/>
     </objects>
 </document>

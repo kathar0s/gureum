@@ -44,6 +44,11 @@ class GureumAppDelegate: NSObject, NSApplicationDelegate, GureumApplicationDeleg
   let configuration = Configuration.shared
   let notificationCenterDelegate = NotificationCenterDelegate()
 
+  override func awakeFromNib() {
+    super.awakeFromNib()
+    menu = GureumMenuBuilder(capabilities: .current()).makeMenu()
+  }
+
   func applicationDidFinishLaunching(_: Notification) {
     if !InputMethodIdentity.current.isChordLab {
       FirebaseApp.configure()
