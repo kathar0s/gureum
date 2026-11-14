@@ -75,5 +75,5 @@ node docs/brand/baram/build.mjs --sync-obsidian
 - [ ] 실제 Mac 메뉴·VoiceOver·두 기기 검증.
 - [ ] 정식 명칭·상표 확인 및 과거 바람 개발자 연락 시도.
 - [ ] 기존 Baram/Gureum 크레딧과 독립 구현 관계 표기.
-- [ ] ChordLab 설정을 보존하는 정식 제품 식별자 전환.
+- [x] ChordLab 설정을 보존하는 Baram 앱·입력 소스·defaults·IMK 식별자 전환.
 - [ ] 패밀리 모서리 8/12/20과 현재 AppKit 그룹 10 pt 차이 해소. 현재 구현의 10 pt는 이 브랜드 작업에서 수정하지 않았습니다.

@@ -10,10 +10,21 @@ import AppKit
 import Foundation
 
 /// 앱 번들이 선택한 입력 소스 및 설정 영역. 일반 구름은 기존 식별자를 유지한다.
+public enum InputMethodProductKind: String {
+  case upstream, lab, baram
+}
+
 public struct InputMethodIdentity {
+  static let knownInputSourceSuffixes: Set<String> = [
+    "system", "qwerty", "dvorak", "colemak", "han2", "han2classic", "han3final", "han390",
+    "han3noshift", "han3classic", "han3layout2", "hanahnmatae", "hanroman",
+    "han3finalnoshift", "han3-2011", "han3-2012",
+  ]
   public let inputSourcePrefix: String
   public let defaultsSuiteName: String
-  public let isChordLab: Bool
+  public let productKind: InputMethodProductKind
+  public let legacyInputSourcePrefix: String?
+  public let legacyDefaultsSuiteName: String?
 
   public static let current = InputMethodIdentity()
 
@@ -24,8 +35,27 @@ public struct InputMethodIdentity {
     defaultsSuiteName =
       bundle.object(forInfoDictionaryKey: "GureumDefaultsSuiteName") as? String
       ?? "org.youknowone.Gureum"
-    isChordLab = bundle.object(forInfoDictionaryKey: "GureumChordLab") as? Bool ?? false
+    if let value = bundle.object(forInfoDictionaryKey: "GureumProductKind") as? String,
+      let kind = InputMethodProductKind(rawValue: value)
+    {
+      productKind = kind
+    } else if bundle.object(forInfoDictionaryKey: "GureumChordLab") as? Bool ?? false {
+      productKind = .lab
+    } else {
+      productKind = .upstream
+    }
+    legacyInputSourcePrefix =
+      bundle.object(forInfoDictionaryKey: "GureumLegacyInputSourcePrefix") as? String
+    legacyDefaultsSuiteName =
+      bundle.object(forInfoDictionaryKey: "GureumLegacyDefaultsSuiteName") as? String
   }
+
+  public var isChordLab: Bool { productKind == .lab }
+  public var isBaram: Bool { productKind == .baram }
+  public var usesForkServices: Bool { productKind != .upstream }
+  public var supportsPhysicalChording: Bool { productKind != .upstream }
+  public var recordsChordDiagnostics: Bool { productKind == .lab }
+  public var supportsUpstreamUpdates: Bool { productKind == .upstream }
 
   public func identifier(for suffix: String) -> String {
     "\(inputSourcePrefix).\(suffix)"
@@ -79,6 +109,15 @@ enum ConfigurationName {
   public static let updateNotification = "UpdateNotification"
   /// 실험버전 업데이트 알림 받기
   public static let updateNotificationExperimental = "UpdateNotificationExperimental"
+
+  static let migratable = [
+    lastHangulInputMode, lastRomanInputMode, inputModeExchangeKey, inputModeSearchKey,
+    inputModeEnglishKey, inputModeKoreanKey, optionKeyBehavior, overridingKeyboardName,
+    romanModeByEscapeKey, hangulWonCurrencySymbolForBackQuote, hangulAutoReorder,
+    hangulNonChoseongCombination, hangulDeferredSymbolCommit,
+    hangulForceStrictCombinationRule, rightToggleKey, updateNotification,
+    updateNotificationExperimental,
+  ]
 }
 
 // MARK: - Configuration 클래스
@@ -92,6 +131,8 @@ public enum UpdateMode {
 public class Configuration: UserDefaults {
   public static let sharedSuiteName = InputMethodIdentity.current.defaultsSuiteName
   public static var shared = Configuration()
+  static let baramMigrationVersionKey = "BaramMigrationVersion"
+  static let baramMigrationVersion = 1
 
   var enableCapslockToToggleInputMode: Bool = false
 
@@ -115,6 +156,9 @@ public class Configuration: UserDefaults {
   }
 
   override init?(suiteName: String?) {
+    if suiteName == InputMethodIdentity.current.defaultsSuiteName {
+      Self.migrateLegacyDefaultsIfNeeded(identity: .current)
+    }
     super.init(suiteName: suiteName)
 
     register(defaults: [
@@ -128,7 +172,7 @@ public class Configuration: UserDefaults {
 
       ConfigurationName.romanModeByEscapeKey: false,
       ConfigurationName.hangulWonCurrencySymbolForBackQuote: true,
-      ConfigurationName.hangulAutoReorder: false,
+      ConfigurationName.hangulAutoReorder: InputMethodIdentity.current.usesForkServices,
       ConfigurationName.physicalChordingEnabled: false,
       ConfigurationName.hangulNonChoseongCombination: false,
       ConfigurationName.hangulDeferredSymbolCommit: false,
@@ -146,6 +190,48 @@ public class Configuration: UserDefaults {
 
   public func persistentDomain() -> [String: Any] {
     return persistentDomain(forName: Configuration.sharedSuiteName) ?? [:]
+  }
+
+  static func migrateLegacyDefaultsIfNeeded(identity: InputMethodIdentity) {
+    guard identity.isBaram, let legacySuite = identity.legacyDefaultsSuiteName,
+      let legacyPrefix = identity.legacyInputSourcePrefix,
+      let target = UserDefaults(suiteName: identity.defaultsSuiteName)
+    else { return }
+    let targetDomain = target.persistentDomain(forName: identity.defaultsSuiteName) ?? [:]
+    guard targetDomain[baramMigrationVersionKey] == nil else { return }
+
+    if targetDomain.isEmpty,
+      let source = UserDefaults(suiteName: legacySuite),
+      let sourceDomain = source.persistentDomain(forName: legacySuite), !sourceDomain.isEmpty
+    {
+      var migrated: [String: Any] = [:]
+      for key in ConfigurationName.migratable {
+        guard let value = sourceDomain[key] else { continue }
+        if key == ConfigurationName.lastHangulInputMode
+          || key == ConfigurationName.lastRomanInputMode
+        {
+          guard let value = value as? String,
+            let migratedValue = migratedInputMode(
+              value, legacyPrefix: legacyPrefix, identity: identity)
+          else { continue }
+          migrated[key] = migratedValue
+        } else {
+          migrated[key] = value
+        }
+      }
+      target.setPersistentDomain(migrated, forName: identity.defaultsSuiteName)
+    }
+    target.set(baramMigrationVersion, forKey: baramMigrationVersionKey)
+  }
+
+  private static func migratedInputMode(
+    _ value: String, legacyPrefix: String, identity: InputMethodIdentity
+  ) -> String? {
+    let prefix = legacyPrefix + "."
+    guard value.hasPrefix(prefix) else { return nil }
+    let suffix = String(value.dropFirst(prefix.count))
+    guard InputMethodIdentity.knownInputSourceSuffixes.contains(suffix) else { return nil }
+    return identity.identifier(for: suffix)
   }
 
   // TODO: code generation

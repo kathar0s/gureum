@@ -32,7 +32,7 @@ class UpdateManager {
   }
 
   func requestVersionInfo(mode: UpdateMode, _ done: @escaping ((VersionInfo?) -> Void)) {
-    guard !InputMethodIdentity.current.isChordLab else {
+    guard InputMethodIdentity.current.supportsUpstreamUpdates else {
       done(nil)
       return
     }

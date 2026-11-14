@@ -1103,7 +1103,7 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
     let labels = descendants(child.view).compactMap { $0 as? NSTextField }.map(\.stringValue)
 
     XCTAssertTrue(labels.contains("모아치기는 순서가 바뀐 낱자를 자동으로 조합합니다."))
-    if !InputMethodIdentity.current.isChordLab {
+    if !InputMethodIdentity.current.supportsPhysicalChording {
       XCTAssertFalse(labels.contains("실험 · 물리적 키 묶기"))
     }
   }
@@ -1133,7 +1133,8 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
 
 class GureumMenuTests: XCTestCase {
   private func capabilities(
-    lab: Bool = false, displayName: String? = nil, bundleName: String? = "Fixture Input Method"
+    lab: Bool = false, productKind: String? = nil, displayName: String? = nil,
+    bundleName: String? = "Fixture Input Method"
   ) throws -> GureumMenuCapabilities {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString).appendingPathExtension("bundle")
@@ -1141,6 +1142,7 @@ class GureumMenuTests: XCTestCase {
     try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
     addTeardownBlock { try FileManager.default.removeItem(at: directory) }
     var info: [String: Any] = ["GureumChordLab": lab]
+    info["GureumProductKind"] = productKind
     info["CFBundleDisplayName"] = displayName
     info["CFBundleName"] = bundleName
     let data = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
@@ -1178,6 +1180,20 @@ class GureumMenuTests: XCTestCase {
   func testLabCapabilitiesExposeOnlyForkIssuesAndSource() throws {
     let capabilities = try capabilities(lab: true)
 
+    XCTAssertNil(capabilities.websiteURL)
+    XCTAssertNil(capabilities.helpURL)
+    XCTAssertNil(capabilities.donationURL)
+    XCTAssertEqual(
+      capabilities.issuesURL?.absoluteString, "https://github.com/kathar0s/gureum/issues")
+    XCTAssertEqual(capabilities.sourceURL?.absoluteString, "https://github.com/kathar0s/gureum")
+    XCTAssertFalse(capabilities.supportsUpdates)
+  }
+
+  func testBaramCapabilitiesUseForkServicesAndBundleDisplayName() throws {
+    let capabilities = try capabilities(
+      productKind: "baram", displayName: "바람 입력기", bundleName: "Baram")
+
+    XCTAssertEqual(capabilities.displayName, "바람 입력기")
     XCTAssertNil(capabilities.websiteURL)
     XCTAssertNil(capabilities.helpURL)
     XCTAssertNil(capabilities.donationURL)
@@ -1321,11 +1337,25 @@ class InputMethodIdentityTests: XCTestCase {
     ])
   }
 
+  private func baramIdentity(
+    defaultsSuite: String = "com.sionyuel.Baram",
+    legacySuite: String = "io.github.kathar0s.GureumChordLab"
+  ) throws -> InputMethodIdentity {
+    try identity(infoDictionary: [
+      "GureumInputSourcePrefix": "com.sionyuel.inputmethod.Baram",
+      "GureumDefaultsSuiteName": defaultsSuite,
+      "GureumProductKind": "baram",
+      "GureumLegacyInputSourcePrefix": "io.github.kathar0s.inputmethod.GureumChordLab",
+      "GureumLegacyDefaultsSuiteName": legacySuite,
+    ])
+  }
+
   func testMissingBundleMetadataPreservesUpstreamIdentity() throws {
     let identity = try identity()
 
     XCTAssertEqual(identity.inputSourcePrefix, "org.youknowone.inputmethod.Gureum")
     XCTAssertEqual(identity.defaultsSuiteName, "org.youknowone.Gureum")
+    XCTAssertEqual(identity.productKind, .upstream)
     XCTAssertFalse(identity.isChordLab)
   }
 
@@ -1334,12 +1364,27 @@ class InputMethodIdentityTests: XCTestCase {
 
     XCTAssertEqual(identity.inputSourcePrefix, "io.github.kathar0s.inputmethod.GureumChordLab")
     XCTAssertEqual(identity.defaultsSuiteName, "io.github.kathar0s.GureumChordLab")
+    XCTAssertEqual(identity.productKind, .lab)
     XCTAssertTrue(identity.isChordLab)
+  }
+
+  func testBaramBundleMetadataSelectsBaramIdentityAndCapabilities() throws {
+    let identity = try baramIdentity()
+
+    XCTAssertEqual(identity.inputSourcePrefix, "com.sionyuel.inputmethod.Baram")
+    XCTAssertEqual(identity.defaultsSuiteName, "com.sionyuel.Baram")
+    XCTAssertEqual(identity.productKind, .baram)
+    XCTAssertTrue(identity.isBaram)
+    XCTAssertTrue(identity.usesForkServices)
+    XCTAssertTrue(identity.supportsPhysicalChording)
+    XCTAssertFalse(identity.recordsChordDiagnostics)
+    XCTAssertFalse(identity.supportsUpstreamUpdates)
   }
 
   func testUpstreamInputSourceIdentifiersRetainTheirExistingValues() throws {
     let identity = try identity()
     XCTAssertEqual(sourceSuffixes.count, GureumInputSource.allCases.count)
+    XCTAssertEqual(Set(sourceSuffixes.map(\.1)), InputMethodIdentity.knownInputSourceSuffixes)
 
     for (source, suffix) in sourceSuffixes {
       XCTAssertEqual(
@@ -1347,8 +1392,8 @@ class InputMethodIdentityTests: XCTestCase {
     }
   }
 
-  func testAllInputSourcesRoundTripUnderUpstreamAndLabIdentities() throws {
-    for identity in try [identity(), labIdentity()] {
+  func testAllInputSourcesRoundTripUnderEveryProductIdentity() throws {
+    for identity in try [identity(), labIdentity(), baramIdentity()] {
       for source in GureumInputSource.allCases {
         let identifier = source.identifier(for: identity)
 
@@ -1367,42 +1412,153 @@ class InputMethodIdentityTests: XCTestCase {
   func testInputSourcesRejectIdentifiersFromTheOtherProduct() throws {
     let upstream = try identity()
     let lab = try labIdentity()
+    let baram = try baramIdentity()
 
     for source in GureumInputSource.allCases {
-      XCTAssertNil(
-        GureumInputSource(rawValue: source.identifier(for: lab), identity: upstream))
-      XCTAssertNil(
-        GureumInputSource(rawValue: source.identifier(for: upstream), identity: lab))
+      for (candidate, other) in [(upstream, lab), (upstream, baram), (lab, baram)] {
+        XCTAssertNil(
+          GureumInputSource(rawValue: source.identifier(for: other), identity: candidate))
+        XCTAssertNil(
+          GureumInputSource(rawValue: source.identifier(for: candidate), identity: other))
+      }
     }
   }
 
   func testInputSourcesRejectUnknownSuffixes() throws {
-    for identity in try [identity(), labIdentity()] {
+    for identity in try [identity(), labIdentity(), baramIdentity()] {
       XCTAssertNil(
         GureumInputSource(rawValue: identity.identifier(for: "unknown"), identity: identity))
     }
   }
 
-  func testLabAndUpstreamSettingsUseIndependentDefaultsSuites() throws {
+  func testEveryProductUsesAnIndependentDefaultsSuite() throws {
     let upstreamIdentity = try identity()
     let labIdentity = try labIdentity()
+    let baramIdentity = try baramIdentity()
     XCTAssertNotEqual(upstreamIdentity.defaultsSuiteName, labIdentity.defaultsSuiteName)
+    XCTAssertNotEqual(upstreamIdentity.defaultsSuiteName, baramIdentity.defaultsSuiteName)
+    XCTAssertNotEqual(labIdentity.defaultsSuiteName, baramIdentity.defaultsSuiteName)
 
     let testSuffix = ".test.\(UUID().uuidString)"
     let upstreamSuite = upstreamIdentity.defaultsSuiteName + testSuffix
     let labSuite = labIdentity.defaultsSuiteName + testSuffix
+    let baramSuite = baramIdentity.defaultsSuiteName + testSuffix
     let upstream = try XCTUnwrap(Configuration(suiteName: upstreamSuite))
     let lab = try XCTUnwrap(Configuration(suiteName: labSuite))
+    let baram = try XCTUnwrap(Configuration(suiteName: baramSuite))
     defer {
       upstream.removePersistentDomain(forName: upstreamSuite)
       lab.removePersistentDomain(forName: labSuite)
+      baram.removePersistentDomain(forName: baramSuite)
     }
 
     upstream.hangulAutoReorder = false
     lab.hangulAutoReorder = true
+    baram.hangulAutoReorder = false
 
     XCTAssertFalse(upstream.hangulAutoReorder)
     XCTAssertTrue(lab.hangulAutoReorder)
+    XCTAssertFalse(baram.hangulAutoReorder)
+  }
+
+  func testBaramMigratesKnownLabSettingsOnceWithoutEnablingPhysicalChording() throws {
+    let suffix = UUID().uuidString
+    let legacySuite = "io.github.kathar0s.GureumChordLab.test.\(suffix)"
+    let baramSuite = "com.sionyuel.Baram.test.\(suffix)"
+    let identity = try baramIdentity(defaultsSuite: baramSuite, legacySuite: legacySuite)
+    let legacy = try XCTUnwrap(UserDefaults(suiteName: legacySuite))
+    let baram = try XCTUnwrap(UserDefaults(suiteName: baramSuite))
+    defer {
+      legacy.removePersistentDomain(forName: legacySuite)
+      baram.removePersistentDomain(forName: baramSuite)
+    }
+    legacy.set(false, forKey: ConfigurationName.hangulAutoReorder)
+    legacy.set(true, forKey: ConfigurationName.hangulForceStrictCombinationRule)
+    legacy.set(true, forKey: ConfigurationName.physicalChordingEnabled)
+    legacy.set(
+      "io.github.kathar0s.inputmethod.GureumChordLab.han3final",
+      forKey: ConfigurationName.lastHangulInputMode)
+    legacy.set(
+      "io.github.kathar0s.inputmethod.GureumChordLab.qwerty",
+      forKey: ConfigurationName.lastRomanInputMode)
+
+    Configuration.migrateLegacyDefaultsIfNeeded(identity: identity)
+    let migratedDomain = try XCTUnwrap(baram.persistentDomain(forName: baramSuite))
+
+    XCTAssertEqual(migratedDomain[ConfigurationName.hangulAutoReorder] as? Bool, false)
+    XCTAssertEqual(
+      migratedDomain[ConfigurationName.hangulForceStrictCombinationRule] as? Bool, true)
+    XCTAssertNil(migratedDomain[ConfigurationName.physicalChordingEnabled])
+    XCTAssertEqual(
+      baram.string(forKey: ConfigurationName.lastHangulInputMode),
+      "com.sionyuel.inputmethod.Baram.han3final")
+    XCTAssertEqual(
+      baram.string(forKey: ConfigurationName.lastRomanInputMode),
+      "com.sionyuel.inputmethod.Baram.qwerty")
+    XCTAssertEqual(
+      baram.integer(forKey: Configuration.baramMigrationVersionKey),
+      Configuration.baramMigrationVersion)
+    XCTAssertEqual(
+      legacy.string(forKey: ConfigurationName.lastHangulInputMode),
+      "io.github.kathar0s.inputmethod.GureumChordLab.han3final")
+    XCTAssertTrue(legacy.bool(forKey: ConfigurationName.physicalChordingEnabled))
+
+    baram.set(true, forKey: ConfigurationName.hangulAutoReorder)
+    legacy.set(false, forKey: ConfigurationName.hangulForceStrictCombinationRule)
+    Configuration.migrateLegacyDefaultsIfNeeded(identity: identity)
+    XCTAssertTrue(baram.bool(forKey: ConfigurationName.hangulAutoReorder))
+    XCTAssertTrue(baram.bool(forKey: ConfigurationName.hangulForceStrictCombinationRule))
+  }
+
+  func testBaramMigrationPreservesExistingTarget() throws {
+    let suffix = UUID().uuidString
+    let legacySuite = "io.github.kathar0s.GureumChordLab.test.\(suffix)"
+    let baramSuite = "com.sionyuel.Baram.test.\(suffix)"
+    let identity = try baramIdentity(defaultsSuite: baramSuite, legacySuite: legacySuite)
+    let legacy = try XCTUnwrap(UserDefaults(suiteName: legacySuite))
+    let baram = try XCTUnwrap(UserDefaults(suiteName: baramSuite))
+    defer {
+      legacy.removePersistentDomain(forName: legacySuite)
+      baram.removePersistentDomain(forName: baramSuite)
+    }
+    baram.set("com.apple.keylayout.Dvorak", forKey: ConfigurationName.overridingKeyboardName)
+
+    Configuration.migrateLegacyDefaultsIfNeeded(identity: identity)
+    let migratedDomain = try XCTUnwrap(baram.persistentDomain(forName: baramSuite))
+
+    XCTAssertEqual(
+      migratedDomain[ConfigurationName.overridingKeyboardName] as? String,
+      "com.apple.keylayout.Dvorak")
+    XCTAssertEqual(
+      baram.integer(forKey: Configuration.baramMigrationVersionKey),
+      Configuration.baramMigrationVersion)
+  }
+
+  func testBaramMigrationRejectsUnknownInputModesInAnEmptyTarget() throws {
+    let suffix = UUID().uuidString
+    let legacySuite = "io.github.kathar0s.GureumChordLab.test.\(suffix)"
+    let baramSuite = "com.sionyuel.Baram.test.\(suffix)"
+    let identity = try baramIdentity(defaultsSuite: baramSuite, legacySuite: legacySuite)
+    let legacy = try XCTUnwrap(UserDefaults(suiteName: legacySuite))
+    let baram = try XCTUnwrap(UserDefaults(suiteName: baramSuite))
+    defer {
+      legacy.removePersistentDomain(forName: legacySuite)
+      baram.removePersistentDomain(forName: baramSuite)
+    }
+    legacy.set(
+      "io.github.kathar0s.inputmethod.GureumChordLab.unknown",
+      forKey: ConfigurationName.lastHangulInputMode)
+    legacy.set(true, forKey: ConfigurationName.hangulForceStrictCombinationRule)
+
+    Configuration.migrateLegacyDefaultsIfNeeded(identity: identity)
+    let migratedDomain = try XCTUnwrap(baram.persistentDomain(forName: baramSuite))
+
+    XCTAssertNil(migratedDomain[ConfigurationName.lastHangulInputMode])
+    XCTAssertEqual(
+      migratedDomain[ConfigurationName.hangulForceStrictCombinationRule] as? Bool, true)
+    XCTAssertEqual(
+      baram.integer(forKey: Configuration.baramMigrationVersionKey),
+      Configuration.baramMigrationVersion)
   }
 
   func testUpstreamRecognizedEventsDoNotRequestKeyUp() throws {
@@ -1437,6 +1593,14 @@ class InputMethodIdentityTests: XCTestCase {
       XCTAssertEqual(lab, upstream)
     #endif
     XCTAssertEqual(upstream.subtracting(lab), [])
+  }
+
+  func testBaramDoesNotRequestIMKKeyUpDiagnostics() throws {
+    let app = ModerateApp()
+    let mask = app.controller.receiver.recognizedEvents(app.client, identity: try baramIdentity())
+
+    XCTAssertTrue(mask.contains(.keyDown))
+    XCTAssertFalse(mask.contains(.keyUp))
   }
 }
 

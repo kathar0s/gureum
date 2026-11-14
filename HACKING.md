@@ -123,7 +123,32 @@ Debug Configuration으로 빌드하면 Console.app에서 로그를 확인할 수
 되돌리려면 같은 설정에서 `물리적 키 묶기`를 끕니다. 관찰을 중지하고 기존 순차 입력으로 돌아가며,
 기존 `모아치기` 스위치인 libhangul 자동 순서 교정은 별도로 유지할 수 있습니다.
 입력 모니터링 허용도 철회하려면 시스템 설정에서 GureumChordLab 항목만 사용자가 직접 끕니다.
-Lab 자체를 제거하려면 먼저 ABC 또는 기본 입력기로 전환한 뒤 위 제거 명령을 사용합니다.
+
+### Baram 로컬 정식명 빌드
+
+`Baram.app`은 기존 구름과 GureumChordLab을 그대로 둔 채 나란히 설치하는 독립 입력기입니다.
+bundle/input-source prefix는 `com.sionyuel.inputmethod.Baram`, defaults suite는
+`com.sionyuel.Baram`, IMK connection은 `Baram_Connection`입니다.
+
+```sh
+tools/install_baram.sh --install
+tools/baram_input_source.sh list
+tools/baram_input_source.sh select han3final
+```
+
+첫 실행에서 Baram 설정 영역이 비어 있으면 GureumChordLab의 알려진 설정만 한 번 복사합니다.
+마지막 한글·로마자 입력 소스 ID는 Baram prefix로 바꾸고, 새 앱의 입력 모니터링 권한이
+필요한 `PhysicalChordingEnabled`는 복사하지 않습니다. Gureum과 Lab 앱·defaults는 삭제하지 않습니다.
+macOS가 새 입력 소스를 바로 선택하지 못해 `OSStatus -50`을 반환하면 시스템 설정 → 키보드 →
+텍스트 입력에서 `바람 · 세벌식 …`을 추가하거나 로그아웃 후 다시 로그인합니다.
+
+제거는 Baram만 백업으로 옮깁니다.
+
+```sh
+tools/install_baram.sh --uninstall
+```
+Lab 자체를 제거하려면 먼저 ABC 또는 기본 입력기로 전환한 뒤
+`tools/install_chord_lab.sh --uninstall`을 사용합니다.
 
 Studio와 MacBook의 설치·빌드·결정적 테스트 결과와 별개로, 실제 권한 승인 후의 기기·앱 호환성 매트릭스는
 아직 검증하지 않았습니다. 패키지 메타데이터의 `physicalChordingVerified`는 계속 `false`입니다.

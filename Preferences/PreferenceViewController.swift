@@ -177,7 +177,7 @@ final class PreferenceViewController: NSViewController {
       updateNotificationExperimentalButton.state = isOn(
         configuration.updateNotificationExperimental)
     }
-    if InputMethodIdentity.current.isChordLab {
+    if InputMethodIdentity.current.usesForkServices {
       updateNotificationButton.state = .off
       updateNotificationButton.isEnabled = false
       updateNotificationExperimentalButton.state = .off
@@ -316,11 +316,11 @@ final class PreferenceViewController: NSViewController {
             "실험 버전 알림",
             control: settingSwitch(updateNotificationExperimentalButton, label: "실험 버전 알림")),
         ],
-        explanation: InputMethodIdentity.current.isChordLab
-          ? helperText("Lab 빌드에서는 구름의 자동 업데이트 알림을 사용하지 않습니다.") : nil),
+        explanation: InputMethodIdentity.current.usesForkServices
+          ? helperText("이 제품에서는 구름의 자동 업데이트 알림을 사용하지 않습니다.") : nil),
     ]
     #if !USE_PREFPANE
-      if InputMethodIdentity.current.isChordLab {
+      if InputMethodIdentity.current.supportsPhysicalChording {
         let toggle = NSSwitch()
         toggle.controlSize = .mini
         toggle.target = self
@@ -398,7 +398,7 @@ final class PreferenceViewController: NSViewController {
   #if !USE_PREFPANE
     override func viewWillAppear() {
       super.viewWillAppear()
-      if InputMethodIdentity.current.isChordLab { refreshPhysicalChordControls() }
+      if InputMethodIdentity.current.supportsPhysicalChording { refreshPhysicalChordControls() }
     }
 
     @objc private func physicalChordModeChanged(_ sender: NSSwitch) {

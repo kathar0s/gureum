@@ -77,7 +77,7 @@ struct ChordControllerEnvironment {
 
   static var production: Self {
     Self(
-      isLab: { InputMethodIdentity.current.isChordLab },
+      isLab: { InputMethodIdentity.current.supportsPhysicalChording },
       isEnabled: { Configuration.shared.physicalChordingEnabled },
       sourceFactory: { PhysicalKeyEventSource.shared },
       clock: { ProcessInfo.processInfo.systemUptime },
@@ -377,7 +377,7 @@ extension InputController {  // IMKServerInputHandleEvent
     flushChangedPhysicalClient(client)
 
     #if DEBUG
-      if InputMethodIdentity.current.isChordLab,
+      if InputMethodIdentity.current.recordsChordDiagnostics,
         event.type == .keyDown || event.type == .keyUp
       {
         let eventType = event.type == .keyDown ? "keyDown" : "keyUp"

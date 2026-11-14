@@ -167,7 +167,7 @@ public class InputMethodServer {
     #if DEBUG
       if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
         name += "_Test" + String(describing: Int.random(in: 0..<0x10000))
-      } else if !InputMethodIdentity.current.isChordLab {
+      } else if !InputMethodIdentity.current.usesForkServices {
         name += "_Debug"
       }
     #endif

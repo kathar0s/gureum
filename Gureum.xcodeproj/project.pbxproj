@@ -721,6 +721,7 @@
 				38162DEF141263270077AA2D /* Sources */,
 				38162DF0141263270077AA2D /* Frameworks */,
 				38162DF1141263270077AA2D /* Resources */,
+				A7BAAA000000000000000001 /* Localize Product Resources */,
 				387736EB1423561F00DE50D6 /* Copy Frameworks */,
 				CE31CC0B281099D9004659B0 /* Run Crashlytics */,
 			);
@@ -1024,6 +1025,21 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		A7BAAA000000000000000001 /* Localize Product Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/tools/localize_product_resources.sh",
+			);
+			name = "Localize Product Resources";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "\"${SRCROOT}/tools/localize_product_resources.sh\"\n";
+		};
 		382AF2C12156269F00701F90 /* Generate Version.xcconfig */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -1070,7 +1086,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "if [ \"${GUREUM_VARIANT:-STANDARD}\" != \"LAB\" ]; then\n  \"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\"\nfi\n";
+			shellScript = "if [ \"${GUREUM_VARIANT:-STANDARD}\" = \"STANDARD\" ]; then\n  \"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -1246,7 +1262,7 @@
 		38162E09141263280077AA2D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "$(GUREUM_APP_ICON_$(GUREUM_VARIANT))";
 				CODE_SIGN_IDENTITY = "-";
 				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
@@ -1254,10 +1270,16 @@
 				GUREUM_VARIANT = STANDARD;
 				GUREUM_APP_NAME_STANDARD = Gureum;
 				GUREUM_APP_NAME_LAB = GureumChordLab;
+				GUREUM_APP_NAME_BARAM = Baram;
 				GUREUM_APP_ID_STANDARD = org.youknowone.inputmethod.Gureum;
 				GUREUM_APP_ID_LAB = io.github.kathar0s.inputmethod.GureumChordLab;
+				GUREUM_APP_ID_BARAM = com.sionyuel.inputmethod.Baram;
 				GUREUM_APP_PLIST_STANDARD = OSX/Info.plist;
 				GUREUM_APP_PLIST_LAB = "OSX/GureumChordLab-Info.plist";
+				GUREUM_APP_PLIST_BARAM = "OSX/Baram-Info.plist";
+				GUREUM_APP_ICON_STANDARD = AppIcon;
+				GUREUM_APP_ICON_LAB = AppIcon;
+				GUREUM_APP_ICON_BARAM = BaramAppIcon;
 				INFOPLIST_FILE = "$(GUREUM_APP_PLIST_$(GUREUM_VARIANT))";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Input Methods";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1275,7 +1297,7 @@
 		38162E0A141263280077AA2D /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "$(GUREUM_APP_ICON_$(GUREUM_VARIANT))";
 				CODE_SIGN_ENTITLEMENTS = OSX/Gureum.entitlements;
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				DEVELOPMENT_TEAM = 9384JEL3M9;
@@ -1286,10 +1308,16 @@
 				GUREUM_VARIANT = STANDARD;
 				GUREUM_APP_NAME_STANDARD = Gureum;
 				GUREUM_APP_NAME_LAB = GureumChordLab;
+				GUREUM_APP_NAME_BARAM = Baram;
 				GUREUM_APP_ID_STANDARD = org.youknowone.inputmethod.Gureum;
 				GUREUM_APP_ID_LAB = io.github.kathar0s.inputmethod.GureumChordLab;
+				GUREUM_APP_ID_BARAM = com.sionyuel.inputmethod.Baram;
 				GUREUM_APP_PLIST_STANDARD = OSX/Info.plist;
 				GUREUM_APP_PLIST_LAB = "OSX/GureumChordLab-Info.plist";
+				GUREUM_APP_PLIST_BARAM = "OSX/Baram-Info.plist";
+				GUREUM_APP_ICON_STANDARD = AppIcon;
+				GUREUM_APP_ICON_LAB = AppIcon;
+				GUREUM_APP_ICON_BARAM = BaramAppIcon;
 				INFOPLIST_FILE = "$(GUREUM_APP_PLIST_$(GUREUM_VARIANT))";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Input Methods";
 				LD_RUNPATH_SEARCH_PATHS = (

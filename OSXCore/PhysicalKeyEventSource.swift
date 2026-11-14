@@ -46,7 +46,7 @@ public final class PhysicalKeyEventSource: PhysicalKeyEventSourceProtocol {
   public var statusText: String {
     if let sessionWarning = sessionWarning { return sessionWarning }
     switch status {
-    case .stopped: return "대기 · Lab 세벌식 입력이 활성화될 때만 관찰합니다."
+    case .stopped: return "대기 · 지원 세벌식 입력이 활성화될 때만 관찰합니다."
     case .permissionDenied: return "입력 모니터링 허용이 필요합니다."
     case .secureInput: return "보안 입력 중 · 일반 입력을 사용합니다."
     case .healthy: return "키 해제 수신 준비됨 · 누른 순서대로 전달합니다."
@@ -57,7 +57,7 @@ public final class PhysicalKeyEventSource: PhysicalKeyEventSourceProtocol {
   /// Call only from the explicit permission button; neither startup nor install invokes this.
   @discardableResult public func requestPermissionFromUserAction() -> Bool {
     precondition(Thread.isMainThread)
-    guard InputMethodIdentity.current.isChordLab else { return false }
+    guard InputMethodIdentity.current.supportsPhysicalChording else { return false }
     let granted = CGRequestListenEventAccess()
     refresh()
     return granted
@@ -76,7 +76,8 @@ public final class PhysicalKeyEventSource: PhysicalKeyEventSourceProtocol {
 
   func acquireLease(_ token: UUID) {
     precondition(Thread.isMainThread)
-    guard InputMethodIdentity.current.isChordLab, Configuration.shared.physicalChordingEnabled
+    guard InputMethodIdentity.current.supportsPhysicalChording,
+      Configuration.shared.physicalChordingEnabled
     else {
       stop(status: .stopped)
       return
@@ -96,7 +97,7 @@ public final class PhysicalKeyEventSource: PhysicalKeyEventSourceProtocol {
 
   private func start() {
     precondition(Thread.isMainThread)
-    guard InputMethodIdentity.current.isChordLab else { return }
+    guard InputMethodIdentity.current.supportsPhysicalChording else { return }
     guard !leases.isEmpty, Configuration.shared.physicalChordingEnabled else {
       stop(status: .stopped)
       return

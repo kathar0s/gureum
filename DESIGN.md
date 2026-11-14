@@ -4,7 +4,7 @@
 
 Status: **Draft — product name and flowing B direction confirmed; final geometry proposed for review.**
 Date: 2026-11-14.  
-Product: **바람 입력기 · Baram Input Method**. This document governs the future formal product; the installed experiment remains GureumChordLab until the identity migration is verified.
+Product: **바람 입력기 · Baram Input Method**. The local ad-hoc Baram build now has an independent app, input-source, defaults, and IMK identity; GureumChordLab remains installed only as a rollback path.
 
 Surfaces: macOS input-menu symbols, app icon, preferences, installer/readme, release materials, and the eight-page brand sheet at `docs/brand/baram/sheet.html`. PDF and 1200×750 page PNGs are generated under `docs/brand/baram/brand-sheet/`. The earlier one-page SVG is an overview study only.
 
@@ -176,7 +176,7 @@ Provenance wording for release review: “구름 입력기를 기반으로 새�
 - Existing stack: Swift/AppKit, XIB/storyboard, InputMethodKit, libhangul, MASShortcut. No web frontend/package framework was found for these surfaces.
 - Minimum target: macOS 12; Apple Silicon and Intel packaging require architecture verification.
 - Retain existing configuration values, shortcut behavior, localization, and client-composition boundaries during visual changes.
-- Keep GureumChordLab identifiers until the dedicated migration step. A rename must cover app, bundle, input-source IDs, defaults, IMKit connection, installers, labels, docs, and safe migration/rollback together.
+- Baram identity is fixed locally as `Baram.app`, bundle/input-source prefix `com.sionyuel.inputmethod.Baram`, defaults suite `com.sionyuel.Baram`, and IMK connection `Baram_Connection`. Gureum and GureumChordLab identities remain unchanged for rollback.
 - Existing cloud icons have separate CC-BY-NC-ND terms (`OSX/Icons/COPYING`); the sheet's geometry is newly authored and does not trace them.
 - No historical Baram artwork is included. No third-party font binaries or stock images are added.
 - Rebuild with `node docs/brand/baram/build.mjs`; add `--sync-obsidian` to refresh only named PDF/page copies in `/Users/nexus/Obsidian/kathar0s/Resources/brand_assets/baram/`. That folder's README records the source path, provenance, and remaining work.
@@ -188,7 +188,7 @@ Provenance wording for release review: “구름 입력기를 기반으로 새�
 
 - [ ] User: approve or revise final 바람 궤적 B geometry after actual-size/no-wordmark comparison; B-first reading and one-flow character are confirmed directions.
 - [ ] Release owner: complete official trademark/name clearance and attempt contact with historical Baram developer; determines public naming/relationship language, not this draft's ability to be reviewed.
-- [ ] Release owner: decide final bundle/defaults identifiers and migration rules after trial gates; prevents settings loss and duplicate input sources.
+- [x] Engineering: add independent Baram bundle/defaults/IMK/input-source identities and one-time Lab settings migration without removing either predecessor.
 - [ ] Engineering: prove or reject physical key-up delivery across required clients; determines feature language and architecture.
 - [ ] Design/release: approve final outlined Korean wordmark and original icon license; determines shipping asset provenance.
 - [ ] QA: verify actual native menu and VoiceOver interaction on both target Macs; sheet illustrations do not prove interaction.

@@ -14,7 +14,7 @@ let preferencesWindow: NSWindowController =
   NSStoryboard(name: "Configuration", bundle: Bundle.main).instantiateInitialController()
   as! NSWindowController
 
-/// The destinations this product can actually support. Lab never inherits upstream services.
+/// The destinations this product can actually support. Fork products never inherit upstream services.
 struct GureumMenuCapabilities {
   let displayName: String
   let websiteURL: URL?
@@ -33,7 +33,7 @@ struct GureumMenuCapabilities {
       .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
       .first { !$0.isEmpty }
       ?? "구름 입력기"
-    if identity.isChordLab {
+    if identity.usesForkServices {
       return GureumMenuCapabilities(
         displayName: displayName, websiteURL: nil, helpURL: nil,
         issuesURL: URL(string: "https://github.com/kathar0s/gureum/issues"),

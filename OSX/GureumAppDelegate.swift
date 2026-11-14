@@ -50,7 +50,7 @@ class GureumAppDelegate: NSObject, NSApplicationDelegate, GureumApplicationDeleg
   }
 
   func applicationDidFinishLaunching(_: Notification) {
-    if !InputMethodIdentity.current.isChordLab {
+    if !InputMethodIdentity.current.usesForkServices {
       FirebaseApp.configure()
     }
     UserDefaults.standard.register(defaults: ["NSApplicationCrashOnExceptions": true])
@@ -70,12 +70,12 @@ class GureumAppDelegate: NSObject, NSApplicationDelegate, GureumApplicationDeleg
       // Fabric.with([Crashlytics.self, Answers.self])
     #endif
 
-    if !InputMethodIdentity.current.isChordLab {
+    if InputMethodIdentity.current.supportsUpstreamUpdates {
       UpdateManager.shared.notifyUpdateIfNeeded()
     }
 
     // 입력 모니터링 권한 요청
-    if !InputMethodIdentity.current.isChordLab,
+    if !InputMethodIdentity.current.usesForkServices,
       ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil,
       #available(macOS 10.15, *)
     {

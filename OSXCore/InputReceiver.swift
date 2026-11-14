@@ -287,7 +287,7 @@ extension InputReceiver {  // IMKStateSetting
       .rightMouseDown, .leftMouseDragged, .rightMouseDragged, .appKitDefined, .applicationDefined,
       .systemDefined)
     #if DEBUG
-      if identity.isChordLab {
+      if identity.recordsChordDiagnostics {
         return events.union(.keyUp)
       }
     #endif
