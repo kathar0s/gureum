@@ -12,10 +12,14 @@ import Cocoa
 
 let mainNibName = Bundle.main.infoDictionary!["NSMainNibFile"] as! String
 let nib = NSNib(nibNamed: NSNib.Name(mainNibName), bundle: Bundle.main)!
-if nib.instantiate(withOwner: NSApplication.shared, topLevelObjects: nil) == false {
+var mainNibTopLevelObjects: NSArray?
+if nib.instantiate(
+  withOwner: NSApplication.shared, topLevelObjects: &mainNibTopLevelObjects) == false
+{
   dlog(true, "!! Gureum fails to load Main Nib File !!")
 }
-
 dlog(true, "****   Main bundle \(mainNibName) loaded   ****")
-NSApplication.shared.run()
+withExtendedLifetime(mainNibTopLevelObjects) {
+  NSApplication.shared.run()
+}
 dlog(true, "******* Gureum finalized! *******")
