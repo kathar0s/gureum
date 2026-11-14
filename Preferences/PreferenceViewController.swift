@@ -514,7 +514,7 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
     autocorrectionApplicationMenu = SystemSettingsPopUpButton(frame: .zero, pullsDown: false)
     autocorrectionApplicationMenu.target = self
     autocorrectionApplicationMenu.action = #selector(autocorrectionApplicationMenuChanged(_:))
-    styleMenu(autocorrectionApplicationMenu, label: "자동 한글 변환")
+    styleMenu(autocorrectionApplicationMenu, label: "실험 · 자동 한글 변환")
     refreshAutocorrectionApplicationMenu()
 
     var inputSections: [NSView] = [
@@ -608,11 +608,12 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
     ]
     var applicationRows = [settingRow("Esc로 로마자 전환", control: escapeKeyApplicationMenu)]
     if productIdentity.isBaram {
-      applicationRows.append(settingRow("자동 한글 변환", control: autocorrectionApplicationMenu))
+      applicationRows.append(
+        settingRow("실험 · 자동 한글 변환", control: autocorrectionApplicationMenu))
     }
     let applicationHelp =
       productIdentity.isBaram
-      ? "선택한 앱에서만 적용합니다. Esc는 로마자로 전환합니다. 자동 한글 변환은 바람의 로마자 모드에서 공백·Return·Tab을 누를 때 완전히 조합된 세벌식 단어만 바꿉니다. 예: jfshea → 안녕. 일부 터미널 앱과 보안 입력은 제외됩니다."
+      ? "모든 앱 또는 선택한 앱에 적용합니다. Esc는 로마자로 전환합니다. 자동 한글 변환은 바람의 로마자 모드에서 공백·Return·Tab을 누를 때 완전히 조합된 세벌식 단어만 바꿉니다. 예: jfshea → 안녕. 일부 터미널 앱과 보안 입력은 제외됩니다."
       : "선택한 Vim·터미널·코드 편집기에서만 Esc 또는 Control+[로 한글 조합을 끝내고 로마자로 전환합니다."
     advancedSections.append(
       section("앱별 동작", rows: applicationRows, explanation: helperText(applicationHelp)))
@@ -901,7 +902,8 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
   }
 
   private func refreshApplicationMenu(
-    _ menu: NSPopUpButton, applications: [String: String], summaryOverride: String? = nil
+    _ menu: NSPopUpButton, applications: [String: String], summaryOverride: String? = nil,
+    offersAllApplications: Bool = false, allApplicationsEnabled: Bool = false
   ) {
     let summary: String
     if let summaryOverride {
@@ -927,10 +929,16 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
       }
     }
     menu.menu?.addItem(.separator())
+    if offersAllApplications {
+      let all = NSMenuItem(title: "모든 앱에서 사용", action: nil, keyEquivalent: "")
+      all.representedObject = "all"
+      all.state = allApplicationsEnabled ? .on : .off
+      menu.menu?.addItem(all)
+    }
     let choose = NSMenuItem(title: "앱 선택…", action: nil, keyEquivalent: "")
     choose.representedObject = "choose"
     menu.menu?.addItem(choose)
-    if summaryOverride != nil || !applications.isEmpty {
+    if summaryOverride != nil || !applications.isEmpty || allApplicationsEnabled {
       let clear = NSMenuItem(title: "설정 지우기", action: nil, keyEquivalent: "")
       clear.representedObject = "clear"
       menu.menu?.addItem(clear)
@@ -939,22 +947,30 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
   }
 
   private func refreshAutocorrectionApplicationMenu() {
+    let allApplications = configuration.hangulLayoutAutocorrectionAllApplications
     refreshApplicationMenu(
       autocorrectionApplicationMenu,
-      applications: configuration.hangulLayoutAutocorrectionApplications)
+      applications: configuration.hangulLayoutAutocorrectionApplications,
+      summaryOverride: allApplications ? "모든 앱" : nil,
+      offersAllApplications: true, allApplicationsEnabled: allApplications)
   }
 
   @objc private func autocorrectionApplicationMenuChanged(_ sender: NSPopUpButton) {
     defer { refreshAutocorrectionApplicationMenu() }
     switch sender.selectedItem?.representedObject as? String {
+    case "all":
+      configuration.hangulLayoutAutocorrectionAllApplications = true
+      configuration.hangulLayoutAutocorrectionApplications = [:]
     case "choose":
       guard
         let applications = chooseApplications(
           title: "자동 한글 변환을 사용할 앱 선택",
           message: "바람의 로마자 모드에서 세벌식으로 완전히 조합되는 단어를 바꿉니다. 예: jfshea → 안녕. 일부 터미널 앱과 보안 입력은 제외됩니다.")
       else { return }
+      configuration.hangulLayoutAutocorrectionAllApplications = false
       configuration.hangulLayoutAutocorrectionApplications = applications
     case "clear":
+      configuration.hangulLayoutAutocorrectionAllApplications = false
       configuration.hangulLayoutAutocorrectionApplications = [:]
     default:
       break

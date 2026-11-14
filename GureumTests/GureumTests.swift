@@ -1148,6 +1148,7 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
   func testFeatureIsOffWithoutAnAllowedApplication() {
     let app = app(enabled: false)
     XCTAssertTrue(Configuration.shared.hangulLayoutAutocorrectionApplications.isEmpty)
+    XCTAssertFalse(Configuration.shared.hangulLayoutAutocorrectionAllApplications)
     app.inputKeys("jfshea")
     app.inputText(" ", key: .space)
     XCTAssertEqual(app.client.string, "jfshea ")
@@ -1261,11 +1262,24 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
   }
 
   func testTerminalAndCredentialAppsCannotBeAllowedAccidentally() {
+    Configuration.shared.hangulLayoutAutocorrectionAllApplications = true
     for identifier in ["com.apple.Terminal", "com.googlecode.iterm2", "com.apple.keychainaccess"] {
       Configuration.shared.hangulLayoutAutocorrectionApplications = [identifier: "Excluded app"]
       XCTAssertFalse(Configuration.shared.usesHangulLayoutAutocorrection(for: identifier))
     }
     XCTAssertFalse(Configuration.shared.usesHangulLayoutAutocorrection(for: nil))
+  }
+
+  func testAllApplicationsAndMultipleSelectedApplicationsAreSupported() {
+    Configuration.shared.hangulLayoutAutocorrectionApplications = [
+      "com.example.One": "One", "com.example.Two": "Two",
+    ]
+    XCTAssertTrue(Configuration.shared.usesHangulLayoutAutocorrection(for: "com.example.One"))
+    XCTAssertTrue(Configuration.shared.usesHangulLayoutAutocorrection(for: "com.example.Two"))
+    XCTAssertFalse(Configuration.shared.usesHangulLayoutAutocorrection(for: "com.example.Three"))
+
+    Configuration.shared.hangulLayoutAutocorrectionAllApplications = true
+    XCTAssertTrue(Configuration.shared.usesHangulLayoutAutocorrection(for: "com.example.Three"))
   }
 
   func testStateTrackerRejectsSelectionMarkedTextModifiersAndClientChanges() {
@@ -1389,20 +1403,21 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
     XCTAssertEqual(child.preferredWindowContentHeight(), pageHeights.max())
   }
 
-  func testBaramAutocorrectionUsesAnAppPickerWithClearOptInCopy() throws {
+  func testBaramAutocorrectionOffersAllAppsAndMultipleAppSelection() throws {
     let (_, child) = try form(identity: identity(.baram))
     select(2, in: child)
     let views = descendants(child.view).filter { !$0.isHiddenOrHasHiddenAncestor }
     let menu = try XCTUnwrap(
       views.compactMap { $0 as? NSPopUpButton }.first {
-        $0.accessibilityLabel() == "자동 한글 변환"
+        $0.accessibilityLabel() == "실험 · 자동 한글 변환"
       })
     XCTAssertEqual(menu.controlSize, .small)
     XCTAssertFalse(menu.isBordered)
+    XCTAssertTrue(menu.itemArray.contains { ($0.representedObject as? String) == "all" })
     XCTAssertTrue(menu.itemArray.contains { ($0.representedObject as? String) == "choose" })
     XCTAssertTrue(
       views.compactMap { $0 as? NSTextField }.contains {
-        $0.stringValue.contains("jfshea → 안녕") && $0.stringValue.contains("선택한 앱에서만")
+        $0.stringValue.contains("jfshea → 안녕") && $0.stringValue.contains("모든 앱 또는 선택한 앱")
       })
   }
 
@@ -1540,7 +1555,7 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
   private func assertPageKeyLoops(identity: InputMethodIdentity) throws {
     let (window, child) = try form(identity: identity)
     var advanced = ["두벌식 종성 결합", "조합 상태 유지", "Esc로 로마자 전환"]
-    if identity.isBaram { advanced.append("자동 한글 변환") }
+    if identity.isBaram { advanced.append("실험 · 자동 한글 변환") }
     if identity.supportsPhysicalChording {
       advanced.append(contentsOf: ["동시에 누른 키 묶기", "키 감지 권한 허용"])
     }

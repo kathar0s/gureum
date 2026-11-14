@@ -102,6 +102,9 @@ enum ConfigurationName {
   /// 완성형 세벌식 조합을 자동 한글 변환할 앱. 빈 목록이면 꺼짐.
   public static let hangulLayoutAutocorrectionApplications =
     "HangulLayoutAutocorrectionApplications"
+  /// 완성형 세벌식 자동변환을 제외 앱 이외의 모든 앱에서 사용.
+  public static let hangulLayoutAutocorrectionAllApplications =
+    "HangulLayoutAutocorrectionAllApplications"
   /// 한글 입력기일 때 역따옴표(`)로 원화 기호(₩) 입력.
   public static let hangulWonCurrencySymbolForBackQuote = "HangulWonCurrencySymbolForBackQuote"
   /// 한글 입력기에서 물리적 역따옴표(`) 키로 입력할 사용자 지정 문자.
@@ -130,6 +133,7 @@ enum ConfigurationName {
     lastHangulInputMode, lastRomanInputMode, inputModeExchangeKey, inputModeSearchKey,
     inputModeEnglishKey, inputModeKoreanKey, optionKeyBehavior, overridingKeyboardName,
     romanModeByEscapeKey, romanModeByEscapeKeyApplications,
+    hangulLayoutAutocorrectionApplications, hangulLayoutAutocorrectionAllApplications,
     hangulWonCurrencySymbolForBackQuote, hangulBackQuoteOutputCharacter,
     hangulShiftBackQuoteOutputCharacter, hangulAutoReorder,
     hangulNonChoseongCombination, hangulDeferredSymbolCommit,
@@ -189,6 +193,7 @@ public class Configuration: UserDefaults {
       ConfigurationName.overridingKeyboardName: "com.apple.keylayout.ABC",
 
       ConfigurationName.romanModeByEscapeKey: false,
+      ConfigurationName.hangulLayoutAutocorrectionAllApplications: false,
       ConfigurationName.hangulWonCurrencySymbolForBackQuote: true,
       ConfigurationName.hangulAutoReorder: InputMethodIdentity.current.usesForkServices,
       ConfigurationName.physicalChordingEnabled: false,
@@ -382,6 +387,11 @@ public class Configuration: UserDefaults {
     }
   }
 
+  public var hangulLayoutAutocorrectionAllApplications: Bool {
+    get { bool(forKey: ConfigurationName.hangulLayoutAutocorrectionAllApplications) }
+    set { set(newValue, forKey: ConfigurationName.hangulLayoutAutocorrectionAllApplications) }
+  }
+
   public func usesHangulLayoutAutocorrection(for bundleIdentifier: String?) -> Bool {
     guard let bundleIdentifier, !bundleIdentifier.isEmpty else { return false }
     // Terminals and credential managers remain excluded even if selected accidentally.
@@ -390,7 +400,8 @@ public class Configuration: UserDefaults {
       "com.apple.keychainaccess", "com.1password.1password", "com.agilebits.onepassword7",
     ]
     guard !excluded.contains(bundleIdentifier) else { return false }
-    return hangulLayoutAutocorrectionApplications[bundleIdentifier] != nil
+    return hangulLayoutAutocorrectionAllApplications
+      || hangulLayoutAutocorrectionApplications[bundleIdentifier] != nil
   }
 
   /// 한글 입력기일 때 역따옴표(`)로 원화 기호(₩) 입력.
