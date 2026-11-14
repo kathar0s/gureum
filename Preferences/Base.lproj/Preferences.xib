@@ -15,9 +15,9 @@
         <customObject id="-3" userLabel="Application" customClass="NSObject"/>
         <window title="≪ do not localize ≫" releasedWhenClosed="NO" visibleAtLaunch="NO" id="F0z-JX-Cv5" userLabel="Preferences control bindings">
             <windowStyleMask key="styleMask" titled="YES" closable="YES" miniaturizable="YES" resizable="YES"/>
-            <rect key="contentRect" x="176" y="100" width="620" height="600"/>
+            <rect key="contentRect" x="176" y="100" width="500" height="440"/>
             <view key="contentView" id="se5-gp-TjO">
-                <rect key="frame" x="0.0" y="0.0" width="620" height="600"/>
+                <rect key="frame" x="0.0" y="0.0" width="500" height="440"/>
                 <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                 <subviews>
                     <!-- The controller arranges these existing setting/action bindings in a native form. -->
@@ -83,10 +83,10 @@
                         </popUpButtonCell>
                         <connections><action selector="optionKeyBehaviorValueChanged:" target="DMm-2g-KCR" id="rU7-6N-ekl"/></connections>
                     </popUpButton>
-                    <customView hidden="YES" id="XiY-Tt-T3F" customClass="MASShortcutView"><rect key="frame" x="0.0" y="0.0" width="176" height="28"/></customView>
-                    <customView hidden="YES" id="H7u-hL-ncz" customClass="MASShortcutView"><rect key="frame" x="0.0" y="0.0" width="176" height="28"/></customView>
-                    <customView hidden="YES" id="fCD-Cp-FQV" customClass="MASShortcutView"><rect key="frame" x="0.0" y="0.0" width="176" height="28"/></customView>
-                    <customView hidden="YES" id="ZkS-XC-ybl" customClass="MASShortcutView"><rect key="frame" x="0.0" y="0.0" width="176" height="28"/></customView>
+                    <customView hidden="YES" id="XiY-Tt-T3F" customClass="GureumShortcutView"><rect key="frame" x="0.0" y="0.0" width="132" height="22"/></customView>
+                    <customView hidden="YES" id="H7u-hL-ncz" customClass="GureumShortcutView"><rect key="frame" x="0.0" y="0.0" width="132" height="22"/></customView>
+                    <customView hidden="YES" id="fCD-Cp-FQV" customClass="GureumShortcutView"><rect key="frame" x="0.0" y="0.0" width="132" height="22"/></customView>
+                    <customView hidden="YES" id="ZkS-XC-ybl" customClass="GureumShortcutView"><rect key="frame" x="0.0" y="0.0" width="132" height="22"/></customView>
                     <button hidden="YES" id="1p7-M2-qsA">
                         <rect key="frame" x="0.0" y="0.0" width="176" height="28"/>
                         <buttonCell key="cell" type="push" title="DEBUG!" bezelStyle="rounded" id="sGP-Ih-dUD"/>

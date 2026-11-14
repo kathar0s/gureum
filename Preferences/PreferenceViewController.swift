@@ -14,16 +14,42 @@ private final class PreferencesDocumentView: NSView {
   override var isFlipped: Bool { true }
 }
 
-private final class PreferencesMenuCell: NSPopUpButtonCell {
-  override func titleRect(forBounds rect: NSRect) -> NSRect {
-    var title = super.titleRect(forBounds: rect)
-    title.size.width = max(0, title.width - 24)
-    return title
+private final class KoreanShortcutCell: MASShortcutViewButtonCell {
+  private static let koreanResources: Bundle? = {
+    for owner in [
+      Bundle.main, Bundle(for: MASShortcutView.self), Bundle(for: PreferenceViewController.self),
+    ] {
+      let resources =
+        owner.url(forResource: "MASShortcut_MASShortcut", withExtension: "bundle")
+        ?? owner.bundleURL.deletingLastPathComponent().appendingPathComponent(
+          "MASShortcut_MASShortcut.bundle")
+      if let bundle = Bundle(url: resources),
+        let path = bundle.path(forResource: "ko", ofType: "lproj")
+      {
+        return Bundle(path: path)
+      }
+    }
+    return nil
+  }()
+
+  override var title: String? {
+    get { super.title }
+    set {
+      guard let value = newValue else {
+        super.title = nil
+        return
+      }
+      let fallback = value == "Record Shortcut" ? "단축키 입력" : value
+      super.title =
+        Self.koreanResources?.localizedString(forKey: value, value: fallback, table: nil)
+        ?? fallback
+    }
   }
 }
 
-private final class PreferencesMenuIndicator: NSImageView {
-  override func hitTest(_ point: NSPoint) -> NSView? { nil }
+@objc(GureumShortcutView)
+private final class GureumShortcutView: MASShortcutView {
+  override class func shortcutCellClass() -> AnyClass { KoreanShortcutCell.self }
 }
 
 #if !USE_PREFPANE
@@ -71,7 +97,8 @@ final class PreferenceViewController: NSViewController {
   private let backgroundQueue = DispatchQueue.global(qos: .background)
   private var preferencePages: [NSView] = []
   private var switchBindings: [NSSwitch: NSButton] = [:]
-  private var disclosureBodies: [NSButton: NSView] = [:]
+  private var preferenceKeyViews: [[NSView]] = []
+  private var buildingKeyViews: [NSView] = []
   private var sectionPicker: NSSegmentedControl!
   #if !USE_PREFPANE
     private var physicalChordSwitch: NSSwitch?
@@ -162,28 +189,29 @@ final class PreferenceViewController: NSViewController {
     buildSettingsForm()
   }
 
+  override func viewDidAppear() {
+    super.viewDidAppear()
+    updateKeyViewLoop()
+  }
+
   /// The nib owns the existing setting controls and actions; this form gives them a
   /// consistent native presentation without changing the stored preferences.
   private func buildSettingsForm() {
     for subview in view.subviews { subview.removeFromSuperview() }
     NSLayoutConstraint.deactivate(view.constraints)
-    view.setFrameSize(NSSize(width: 620, height: 600))
+    view.setFrameSize(NSSize(width: 500, height: 440))
+    preferenceKeyViews.removeAll()
+    buildingKeyViews.removeAll()
 
     sectionPicker = NSSegmentedControl(
       labels: ["입력", "단축키", "고급"], trackingMode: .selectOne,
       target: self, action: #selector(selectSettingsSection(_:)))
-    sectionPicker.segmentStyle = .rounded
+    sectionPicker.segmentStyle = .automatic
+    sectionPicker.controlSize = .regular
     sectionPicker.selectedSegment = 0
     sectionPicker.setAccessibilityLabel("설정 카테고리")
     sectionPicker.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(sectionPicker)
-
-    let optionControl = NSSegmentedControl(
-      labels: ["특수 문자", "로마자"], trackingMode: .selectOne,
-      target: self, action: #selector(optionSegmentChanged(_:)))
-    optionControl.selectedSegment = optionKeyBehaviorButton.indexOfSelectedItem
-    optionControl.segmentStyle = .rounded
-    optionControl.setAccessibilityLabel("Option 키 동작")
 
     let layoutMenu = NSPopUpButton(frame: .zero, pullsDown: false)
     layoutMenu.addItems(withTitles: inputSources.map(\.localizedName))
@@ -194,52 +222,55 @@ final class PreferenceViewController: NSViewController {
     }
     layoutMenu.target = self
     layoutMenu.action = #selector(layoutMenuChanged(_:))
-    styleMenu(layoutMenu, label: "로마자 키보드 레이아웃")
+    styleMenu(layoutMenu, label: "키보드 레이아웃")
     styleMenu(rightToggleKeyButton, label: "오른쪽 전환 키")
+    styleMenu(optionKeyBehaviorButton, label: "Option 키 동작")
 
     var inputSections: [NSView] = [
       section(
         "한글 조합",
         rows: [
           settingRow(
-            "모아치기", detail: "입력 순서가 바뀐 낱자를 자동으로 조합합니다.",
-            control: settingSwitch(hangulAutoReorderButton, label: "모아치기 · 자동 순서 교정")),
+            "모아치기",
+            control: settingSwitch(hangulAutoReorderButton, label: "모아치기")),
           settingRow(
-            "세벌식 정석 조합", detail: "세벌식의 정석 결합 규칙을 적용합니다.",
+            "세벌식 정석 조합",
             control: settingSwitch(hangulForceStrictCombinationRuleButton, label: "세벌식 정석 조합")),
           settingRow(
-            "역따옴표로 원화 기호 입력", detail: "한글 입력 중 ` 키를 누르면 ₩를 입력합니다.",
+            "` 키로 원화 기호 입력",
             control: settingSwitch(
-              hangulWonCurrencySymbolForBackQuoteButton, label: "역따옴표로 원화 기호 입력")),
-        ]),
+              hangulWonCurrencySymbolForBackQuoteButton, label: "` 키로 원화 기호 입력")),
+        ], explanation: helperText("모아치기는 순서가 바뀐 낱자를 자동으로 조합합니다.")),
       section(
         "로마자 입력",
         rows: [
-          settingRow("키보드 레이아웃", control: layoutMenu, controlWidth: 224),
-          settingRow("Option 키 동작", control: optionControl, controlWidth: 224),
-        ]),
-      helperText("키보드 레이아웃은 로마자 입력과 한글 입력 중 로마자 단축키에 함께 적용됩니다."),
+          settingRow("키보드 레이아웃", control: layoutMenu),
+          settingRow("Option 키 동작", control: optionKeyBehaviorButton),
+        ], explanation: helperText("선택한 레이아웃은 로마자 입력과 한글 입력 중 로마자 단축키에 함께 적용됩니다.")),
     ]
     #if !USE_PREFPANE
       if InputMethodIdentity.current.isChordLab {
         let toggle = NSSwitch()
+        toggle.controlSize = .mini
         toggle.target = self
         toggle.action = #selector(physicalChordModeChanged(_:))
-        toggle.setAccessibilityLabel("실험용 물리적 키 묶기")
+        toggle.setAccessibilityLabel("물리적 키 묶기")
+        toggle.setAccessibilityHelp(
+          "지원 세벌식의 모아 누른 키를 배열 기준 초성, 중성, 종성으로 정렬합니다. 경계 및 안전 복구에서는 입력 순서를 유지합니다.")
         physicalChordSwitch = toggle
         let permission = NSButton(
           title: "입력 모니터링 허용…", target: self, action: #selector(requestPhysicalChordPermission(_:)))
+        permission.controlSize = .regular
         physicalChordPermissionButton = permission
+        let status = helperText("")
+        physicalChordStatus = status
         inputSections.append(
           section(
             "실험 · 물리적 키 묶기",
             rows: [
-              settingRow("물리적 키 묶기", detail: "활성 Lab 세벌식에서만 모아 누른 순서대로 전달합니다.", control: toggle),
-              settingRow("키 해제 관찰 권한", detail: "버튼을 누를 때만 시스템 권한을 요청합니다.", control: permission),
-            ]))
-        let status = helperText("")
-        physicalChordStatus = status
-        inputSections.append(status)
+              settingRow("물리적 키 묶기", control: toggle),
+              settingRow("키 해제 관찰 권한", control: permission),
+            ], explanation: status))
         NotificationCenter.default.removeObserver(
           self, name: PhysicalKeyEventSource.statusDidChange, object: nil)
         NotificationCenter.default.addObserver(
@@ -256,34 +287,32 @@ final class PreferenceViewController: NSViewController {
         rows: [
           settingRow(
             "한글 ↔ 로마자",
-            control: shortcutControl(inputModeExchangeShortcutView, label: "한글과 로마자 전환 단축키"),
-            controlWidth: 176),
+            control: shortcutControl(inputModeExchangeShortcutView, label: "한글 ↔ 로마자")),
           settingRow(
             "한자 및 이모지",
-            control: shortcutControl(inputModeSearchShortcutView, label: "한자 및 이모지 단축키"),
-            controlWidth: 176),
+            control: shortcutControl(inputModeSearchShortcutView, label: "한자 및 이모지")),
           settingRow(
-            "로마자로 전환", control: shortcutControl(inputModeEnglishShortcutView, label: "로마자로 전환 단축키"),
-            controlWidth: 176),
+            "로마자로 전환", control: shortcutControl(inputModeEnglishShortcutView, label: "로마자로 전환")),
           settingRow(
-            "한글로 전환", control: shortcutControl(inputModeKoreanShortcutView, label: "한글로 전환 단축키"),
-            controlWidth: 176),
-          settingRow("오른쪽 전환 키", control: rightToggleKeyButton, controlWidth: 224),
+            "한글로 전환", control: shortcutControl(inputModeKoreanShortcutView, label: "한글로 전환")),
         ]),
-      disclosure(
-        "시스템 전환 설정 안내",
-        content: verticalStack(
-          [
-            helperText("오른쪽 키로 전환하려면 시스템 설정의 입력 모니터링에서 구름 입력기를 허용하세요."),
-            settingsLink("입력 모니터링 열기", action: #selector(openInputMonitoringPreference(sender:))),
-            helperText("Caps Lock 전환은 키보드의 입력 소스 설정에서 켤 수 있습니다."),
-            settingsLink(
-              "입력 소스 설정 열기", action: #selector(openKeyboardInputSourcesPreference(sender:))),
-            helperText(
-              "시스템 입력 소스 단축키도 사용할 수 있습니다. Shift가 포함된 조합을 등록할 때는 Fn 키를 함께 누르세요. 예: Fn + Shift + Space."
-            ),
-            settingsLink("키보드 단축키 열기", action: #selector(openKeyboardShortcutsPreference(sender:))),
-          ], spacing: 8)),
+      section(
+        "오른쪽 키 전환",
+        rows: [
+          settingRow("오른쪽 전환 키", control: rightToggleKeyButton),
+          settingRow(
+            "입력 모니터링",
+            control: settingsButton(
+              for: "입력 모니터링", action: #selector(openInputMonitoringPreference(sender:)))),
+        ], explanation: helperText("오른쪽 키로 전환하려면 입력 모니터링 허용이 필요합니다.")),
+      section(
+        "시스템 단축키",
+        rows: [
+          settingRow(
+            "키보드",
+            control: settingsButton(
+              for: "키보드", action: #selector(openKeyboardShortcutsPreference(sender:))))
+        ], explanation: helperText("Caps Lock 전환은 키보드 설정에서 켭니다. Shift 조합을 등록할 때는 Fn 키도 함께 누르세요.")),
     ])
 
     var advancedSections = [
@@ -291,17 +320,18 @@ final class PreferenceViewController: NSViewController {
         "앱 호환성",
         rows: [
           settingRow(
-            "두벌식 종성 결합", detail: "초성 조합 중에도 겹받침을 허용합니다. MS Windows 호환 옵션입니다.",
+            "두벌식 종성 결합",
             control: settingSwitch(hangulNonChoseongCombinationButton, label: "두벌식 종성 결합")),
           settingRow(
-            "조합 상태 유지", detail: "모든 글자를 조합 중인 글자로 처리합니다. JDK 기반 앱 호환 옵션입니다.",
-            control: settingSwitch(hangulDeferredSymbolCommitButton, label: "모든 글자의 조합 상태 유지")),
-        ]),
+            "조합 상태 유지",
+            control: settingSwitch(hangulDeferredSymbolCommitButton, label: "조합 상태 유지")),
+        ], explanation: helperText("특정 앱에서 조합이 어긋날 때만 켜세요. 종성 결합은 Windows 방식, 조합 상태 유지는 JDK 앱용입니다.")
+      ),
       section(
         "편집",
         rows: [
           settingRow(
-            "Esc로 로마자 전환", detail: "vi 스타일로 Esc를 누르면 로마자 입력으로 전환합니다.",
+            "Esc로 로마자 전환",
             control: settingSwitch(romanModeByEscapeKeyButton, label: "Esc로 로마자 전환"))
         ]),
       section(
@@ -310,22 +340,21 @@ final class PreferenceViewController: NSViewController {
           settingRow("업데이트 알림", control: settingSwitch(updateNotificationButton, label: "업데이트 알림")),
           settingRow(
             "실험 버전 알림",
-            control: settingSwitch(updateNotificationExperimentalButton, label: "실험 버전 업데이트 알림")),
-        ]),
+            control: settingSwitch(updateNotificationExperimentalButton, label: "실험 버전 알림")),
+        ],
+        explanation: InputMethodIdentity.current.isChordLab
+          ? helperText("Lab 빌드에서는 구름의 자동 업데이트 알림을 사용하지 않습니다.") : nil),
     ]
-    if InputMethodIdentity.current.isChordLab {
-      advancedSections.append(helperText("Lab 빌드에서는 구름의 자동 업데이트 알림을 사용하지 않습니다."))
-    }
     #if DEBUG
-      debugButton.title = "앱을 의도적으로 종료"
+      debugButton.title = "종료…"
+      debugButton.isBordered = true
+      debugButton.controlSize = .regular
+      debugButton.setAccessibilityLabel("오류 처리 검증을 위해 앱 종료")
       debugButton.isHidden = false
       advancedSections.append(
-        disclosure(
-          "개발자 도구",
-          content: verticalStack(
-            [
-              helperText("오류 처리 검증을 위해 앱을 즉시 종료합니다."), debugButton,
-            ], spacing: 8)))
+        section(
+          "개발자", rows: [settingRow("오류 처리 검증", control: debugButton)],
+          explanation: helperText("오류 처리 검증을 위해 앱을 즉시 종료합니다.")))
     #endif
     let advancedPage = page(advancedSections)
     preferencePages = [inputPage, shortcutsPage, advancedPage]
@@ -344,14 +373,12 @@ final class PreferenceViewController: NSViewController {
       ])
     }
     NSLayoutConstraint.activate([
-      sectionPicker.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
+      sectionPicker.topAnchor.constraint(equalTo: view.topAnchor, constant: 12),
       sectionPicker.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-      sectionPicker.widthAnchor.constraint(equalToConstant: 300),
-      sectionPicker.heightAnchor.constraint(equalToConstant: 28),
-      pageContainer.topAnchor.constraint(equalTo: sectionPicker.bottomAnchor, constant: 24),
-      pageContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 28),
-      pageContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -28),
-      pageContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
+      pageContainer.topAnchor.constraint(equalTo: sectionPicker.bottomAnchor, constant: 20),
+      pageContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+      pageContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+      pageContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -16),
     ])
   }
 
@@ -384,13 +411,15 @@ final class PreferenceViewController: NSViewController {
       source.refresh()
       physicalChordSwitch?.state = isOn(configuration.physicalChordingEnabled)
       physicalChordPermissionButton?.isEnabled = !source.permissionGranted
-      let permission = source.permissionGranted ? "권한 허용됨" : "권한 미허용"
       let state = configuration.physicalChordingEnabled ? source.statusText : "물리적 묶기 꺼짐"
-      physicalChordStatus?.stringValue = "\(permission) · \(state) 권한 변경 후 입력기를 다시 선택하세요."
+      physicalChordPermissionButton?.title = source.permissionGranted ? "허용됨" : "허용…"
+      physicalChordStatus?.stringValue = "실험 · 지원 배열의 초성→중성→종성 정렬. 안전 복구는 입력 순서.\n\(state)"
     }
   #endif
 
   private func page(_ sections: [NSView]) -> NSScrollView {
+    preferenceKeyViews.append(buildingKeyViews)
+    buildingKeyViews.removeAll()
     let scroll = NSScrollView()
     scroll.borderType = .noBorder
     scroll.drawsBackground = false
@@ -412,23 +441,30 @@ final class PreferenceViewController: NSViewController {
     return scroll
   }
 
-  private func section(_ title: String, rows: [NSView]) -> NSView {
+  private func section(_ title: String, rows: [NSView], explanation: NSTextField? = nil) -> NSView {
     let label = NSTextField(labelWithString: title)
-    label.font = .systemFont(ofSize: 13, weight: .semibold)
-    label.textColor = .secondaryLabelColor
+    label.font = .boldSystemFont(ofSize: 13)
+    label.textColor = .labelColor
     let box = NSBox()
-    box.boxType = .custom
+    box.boxType = .primary
     box.titlePosition = .noTitle
-    box.cornerRadius = 10
-    box.borderWidth = 0
-    box.fillColor = .controlBackgroundColor
     box.contentViewMargins = .zero
     var arranged: [NSView] = []
     for (index, row) in rows.enumerated() {
       if index > 0 {
         let separator = NSBox()
         separator.boxType = .separator
-        arranged.append(separator)
+        let inset = NSView()
+        separator.translatesAutoresizingMaskIntoConstraints = false
+        inset.addSubview(separator)
+        NSLayoutConstraint.activate([
+          inset.heightAnchor.constraint(equalToConstant: 1),
+          separator.leadingAnchor.constraint(equalTo: inset.leadingAnchor, constant: 10),
+          separator.trailingAnchor.constraint(equalTo: inset.trailingAnchor, constant: -10),
+          separator.topAnchor.constraint(equalTo: inset.topAnchor),
+          separator.bottomAnchor.constraint(equalTo: inset.bottomAnchor),
+        ])
+        arranged.append(inset)
       }
       arranged.append(row)
     }
@@ -441,19 +477,28 @@ final class PreferenceViewController: NSViewController {
       rowsStack.topAnchor.constraint(equalTo: box.contentView!.topAnchor),
       rowsStack.bottomAnchor.constraint(equalTo: box.contentView!.bottomAnchor),
     ])
-    return verticalStack([label, box], spacing: 10)
+    var headerViews: [NSView] = [label]
+    if let explanation = explanation { headerViews.append(explanation) }
+    let header = verticalStack(headerViews, spacing: 4)
+    let headerInset = NSView()
+    header.translatesAutoresizingMaskIntoConstraints = false
+    headerInset.addSubview(header)
+    let group = verticalStack([headerInset, box], spacing: 8)
+    NSLayoutConstraint.activate([
+      header.leadingAnchor.constraint(equalTo: box.contentView!.leadingAnchor, constant: 10),
+      header.trailingAnchor.constraint(equalTo: box.contentView!.trailingAnchor, constant: -10),
+      header.topAnchor.constraint(equalTo: headerInset.topAnchor),
+      header.bottomAnchor.constraint(equalTo: headerInset.bottomAnchor),
+    ])
+    return group
   }
 
-  private func settingRow(
-    _ title: String, detail: String? = nil, control: NSView, controlWidth: CGFloat? = nil
-  ) -> NSView {
+  private func settingRow(_ title: String, control: NSView) -> NSView {
     let row = NSView()
     let label = NSTextField(wrappingLabelWithString: title)
     label.font = .systemFont(ofSize: 13)
-    var labels: [NSView] = [label]
-    if let detail = detail { labels.append(helperText(detail)) }
-    let text = verticalStack(labels, spacing: 4)
-    text.translatesAutoresizingMaskIntoConstraints = false
+    label.setContentCompressionResistancePriority(.required, for: .horizontal)
+    label.translatesAutoresizingMaskIntoConstraints = false
     control.removeFromSuperview()
     NSLayoutConstraint.deactivate(
       control.constraints.filter {
@@ -461,26 +506,35 @@ final class PreferenceViewController: NSViewController {
       })
     control.translatesAutoresizingMaskIntoConstraints = false
     control.isHidden = false
-    row.addSubview(text)
+    row.addSubview(label)
     row.addSubview(control)
     NSLayoutConstraint.activate([
-      row.heightAnchor.constraint(greaterThanOrEqualToConstant: detail == nil ? 48 : 64),
-      text.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 16),
-      text.topAnchor.constraint(equalTo: row.topAnchor, constant: 12),
-      text.bottomAnchor.constraint(equalTo: row.bottomAnchor, constant: -12),
-      text.trailingAnchor.constraint(equalTo: control.leadingAnchor, constant: -16),
-      control.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -16),
+      row.heightAnchor.constraint(greaterThanOrEqualToConstant: 36),
+      label.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 10),
+      label.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+      label.topAnchor.constraint(greaterThanOrEqualTo: row.topAnchor, constant: 7),
+      label.bottomAnchor.constraint(lessThanOrEqualTo: row.bottomAnchor, constant: -7),
+      label.trailingAnchor.constraint(lessThanOrEqualTo: control.leadingAnchor, constant: -12),
+      control.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -10),
       control.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+      control.topAnchor.constraint(greaterThanOrEqualTo: row.topAnchor, constant: 7),
+      control.bottomAnchor.constraint(lessThanOrEqualTo: row.bottomAnchor, constant: -7),
     ])
-    if let controlWidth = controlWidth {
-      control.widthAnchor.constraint(equalToConstant: controlWidth).isActive = true
-      control.heightAnchor.constraint(equalToConstant: 30).isActive = true
+    if control is NSPopUpButton {
+      control.widthAnchor.constraint(lessThanOrEqualToConstant: 220).isActive = true
+    } else if control is MASShortcutView {
+      control.widthAnchor.constraint(equalToConstant: 132).isActive = true
+      let button = NSButton(title: "단축키 입력", target: nil, action: nil)
+      control.heightAnchor.constraint(equalToConstant: button.intrinsicContentSize.height)
+        .isActive = true
     }
+    buildingKeyViews.append(control)
     return row
   }
 
   private func settingSwitch(_ backing: NSButton, label: String) -> NSSwitch {
     let control = NSSwitch()
+    control.controlSize = .mini
     control.state = backing.state
     control.isEnabled = backing.isEnabled
     control.target = self
@@ -491,41 +545,17 @@ final class PreferenceViewController: NSViewController {
   }
 
   private func styleMenu(_ menu: NSPopUpButton, label: String) {
-    let nativeMenu = menu.menu
-    let selectedIndex = menu.indexOfSelectedItem
-    let target = menu.target
-    let action = menu.action
-    let cell = PreferencesMenuCell(textCell: menu.title, pullsDown: false)
-    cell.arrowPosition = .noArrow
-    menu.cell = cell
-    menu.menu = nativeMenu
-    menu.selectItem(at: selectedIndex)
-    menu.target = target
-    menu.action = action
+    if #available(macOS 14, *) { menu.bezelStyle = .automatic }
     menu.isBordered = false
-    menu.controlSize = .large
-    menu.font = .systemFont(ofSize: 13)
+    menu.controlSize = .regular
     menu.alignment = .right
     menu.cell?.lineBreakMode = .byTruncatingMiddle
-    menu.setAccessibilityElement(true)
-    menu.setAccessibilityRole(.popUpButton)
     menu.setAccessibilityLabel(label)
-    let indicator = PreferencesMenuIndicator()
-    indicator.image = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)
-    indicator.contentTintColor = .secondaryLabelColor
-    indicator.setAccessibilityElement(false)
-    indicator.translatesAutoresizingMaskIntoConstraints = false
-    menu.addSubview(indicator)
-    NSLayoutConstraint.activate([
-      indicator.widthAnchor.constraint(equalToConstant: 12),
-      indicator.heightAnchor.constraint(equalToConstant: 12),
-      indicator.trailingAnchor.constraint(equalTo: menu.trailingAnchor, constant: -4),
-      indicator.centerYAnchor.constraint(equalTo: menu.centerYAnchor),
-    ])
   }
 
   private func shortcutControl(_ control: MASShortcutView, label: String) -> NSView {
     control.setAccessibilityLabel(label)
+    control.setAcceptsFirstResponder(true)
     return control
   }
 
@@ -550,31 +580,30 @@ final class PreferenceViewController: NSViewController {
     return stack
   }
 
-  private func settingsLink(_ title: String, action: Selector) -> NSButton {
-    let button = NSButton(title: title, target: self, action: action)
-    button.bezelStyle = .inline
-    button.contentTintColor = .controlAccentColor
-    button.alignment = .left
+  private func settingsButton(for title: String, action: Selector) -> NSButton {
+    let button = NSButton(title: "열기…", target: self, action: action)
+    button.setAccessibilityLabel("\(title) 열기")
     return button
   }
 
-  private func disclosure(_ title: String, content: NSView) -> NSView {
-    let button = NSButton(title: title, target: self, action: #selector(toggleDisclosure(_:)))
-    button.bezelStyle = .inline
-    button.alignment = .left
-    button.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)
-    button.imagePosition = .imageLeading
-    button.setButtonType(.onOff)
-    button.setAccessibilityExpanded(false)
-    content.isHidden = true
-    disclosureBodies[button] = content
-    return verticalStack([button, content], spacing: 12)
+  private func updateKeyViewLoop() {
+    guard let window = view.window,
+      preferenceKeyViews.indices.contains(sectionPicker.selectedSegment)
+    else { return }
+    window.autorecalculatesKeyViewLoop = true
+    window.recalculateKeyViewLoop()
+    let controls = [sectionPicker!] + preferenceKeyViews[sectionPicker.selectedSegment]
+    for (index, control) in controls.enumerated() {
+      control.nextKeyView = controls[(index + 1) % controls.count]
+    }
+    window.initialFirstResponder = sectionPicker
   }
 
   @objc private func selectSettingsSection(_ sender: NSSegmentedControl) {
     for (index, page) in preferencePages.enumerated() {
       page.isHidden = index != sender.selectedSegment
     }
+    updateKeyViewLoop()
   }
 
   @objc private func settingSwitchChanged(_ sender: NSSwitch) {
@@ -584,22 +613,9 @@ final class PreferenceViewController: NSViewController {
     for (control, button) in switchBindings { control.isEnabled = button.isEnabled }
   }
 
-  @objc private func optionSegmentChanged(_ sender: NSSegmentedControl) {
-    optionKeyBehaviorButton.selectItem(at: sender.selectedSegment)
-    optionKeyBehaviorValueChanged(optionKeyBehaviorButton)
-  }
-
   @objc private func layoutMenuChanged(_ sender: NSPopUpButton) {
     guard inputSources.indices.contains(sender.indexOfSelectedItem) else { return }
     configuration.overridingKeyboardName = inputSources[sender.indexOfSelectedItem].identifier
-  }
-
-  @objc private func toggleDisclosure(_ sender: NSButton) {
-    let expanded = sender.state == .on
-    disclosureBodies[sender]?.isHidden = !expanded
-    sender.image = NSImage(
-      systemSymbolName: expanded ? "chevron.down" : "chevron.right", accessibilityDescription: nil)
-    sender.setAccessibilityExpanded(expanded)
   }
 
   private func runAppleScript(_ script: String) {

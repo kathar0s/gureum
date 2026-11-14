@@ -2,6 +2,7 @@
 import Cocoa
 import ImageIO
 import PreferencePanes
+import QuartzCore
 import UniformTypeIdentifiers
 
 guard CommandLine.arguments.count == 3 else {
@@ -30,7 +31,7 @@ let originalSize = content.frame.size
 let variants: [(String, NSAppearance.Name, NSSize)] = [
   ("light", .aqua, originalSize),
   ("dark", .darkAqua, originalSize),
-  ("minimum", .aqua, NSSize(width: 600, height: 560)),
+  ("minimum", .aqua, NSSize(width: 500, height: 340)),
 ]
 let window = NSWindow(
   contentRect: NSRect(origin: .zero, size: originalSize),
@@ -53,11 +54,10 @@ for (sectionIndex, section) in sections.enumerated() {
   }
   var sectionVariants = variants
   if section == "input" {
-    sectionVariants.append(("long-layout-focus", .aqua, NSSize(width: 600, height: 560)))
+    sectionVariants.append(("long-layout-focus", .aqua, NSSize(width: 500, height: 440)))
   }
-  if section == "shortcuts" || section == "advanced" {
-    sectionVariants.append(("expanded", .aqua, originalSize))
-  }
+  if section == "shortcuts" { sectionVariants.append(("system-help", .aqua, originalSize)) }
+  if section == "advanced" { sectionVariants.append(("developer", .aqua, originalSize)) }
   for (name, appearance, size) in sectionVariants {
     let menu = descendants(of: content).compactMap { $0 as? NSPopUpButton }.first
     let selectedIndex = menu?.indexOfSelectedItem
@@ -67,16 +67,7 @@ for (sectionIndex, section) in sections.enumerated() {
       precondition(
         window.makeFirstResponder(menu), "Native layout menu must accept keyboard focus.")
       precondition(
-        menu.accessibilityRole() == .popUpButton,
-        "Layout picker must keep its native accessibility role.")
-    }
-    if name == "expanded" {
-      let title = section == "shortcuts" ? "시스템 전환 설정 안내" : "개발자 도구"
-      if let button = descendants(of: content).compactMap({ $0 as? NSButton }).first(where: {
-        $0.title == title
-      }) {
-        button.performClick(nil)
-      }
+        menu.cell is NSPopUpButtonCell, "Layout picker must keep its stock native popup cell.")
     }
     window.appearance = NSAppearance(named: appearance)
     window.setContentSize(size)
@@ -85,7 +76,43 @@ for (sectionIndex, section) in sections.enumerated() {
     app.updateWindows()
     window.display()
     RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.1))
+    if let scroll = descendants(of: content).compactMap({ $0 as? NSScrollView }).first(where: {
+      !$0.isHiddenOrHasHiddenAncestor
+    }), let document = scroll.documentView {
+      let bottom = max(0, document.bounds.height - scroll.contentView.bounds.height)
+      scroll.contentView.scroll(
+        to: NSPoint(x: 0, y: name == "system-help" || name == "developer" ? bottom : 0))
+      scroll.reflectScrolledClipView(scroll.contentView)
+      app.updateWindows()
+      window.display()
+      RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.1))
+      content.displayIfNeeded()
+      CATransaction.flush()
+    }
     content.displayIfNeeded()
+    let visibleControls = descendants(of: content).filter {
+      !$0.isHiddenOrHasHiddenAncestor
+        && (($0 is NSControl && !($0 is NSTextField))
+          || $0.responds(to: NSSelectorFromString("setShortcutValue:")))
+    }
+    for control in visibleControls {
+      if let label = control.superview?.subviews.compactMap({ $0 as? NSTextField }).first {
+        let delta = abs(control.frame.midY - label.frame.midY)
+        precondition(delta <= 0.5, "Row labels and controls must share their vertical center.")
+        print(
+          "metric \(section) \(name): \(label.stringValue) \(control.frame.size) centerDelta=\(delta)"
+        )
+      }
+    }
+    if let picker = picker {
+      var current: NSView? = picker
+      var seen = Set<ObjectIdentifier>()
+      while let next = current, seen.insert(ObjectIdentifier(next)).inserted {
+        precondition(!next.isHiddenOrHasHiddenAncestor, "Keyboard loop must exclude hidden pages.")
+        current = next.nextKeyView
+      }
+      precondition(current === picker, "Keyboard loop must return to category navigation.")
+    }
     guard
       let context = CGContext(
         data: nil, width: Int(size.width * 2), height: Int(size.height * 2),
@@ -96,9 +123,10 @@ for (sectionIndex, section) in sections.enumerated() {
       exit(1)
     }
     let bounds = CGRect(origin: .zero, size: NSSize(width: size.width * 2, height: size.height * 2))
-    context.setFillColor(
-      appearance == .darkAqua ? CGColor(gray: 0.13, alpha: 1) : CGColor(gray: 0.96, alpha: 1))
-    context.fill(bounds)
+    window.effectiveAppearance.performAsCurrentDrawingAppearance {
+      context.setFillColor(NSColor.windowBackgroundColor.cgColor)
+      context.fill(bounds)
+    }
     context.scaleBy(x: 2, y: 2)
     content.layer?.render(in: context)
     let target = outputURL.appendingPathComponent("preferences-\(section)-\(name).png")
@@ -106,6 +134,23 @@ for (sectionIndex, section) in sections.enumerated() {
       let destination = CGImageDestinationCreateWithURL(
         target as CFURL, UTType.png.identifier as CFString, 1, nil)
     else { exit(1) }
+    if let box = descendants(of: content).compactMap({ $0 as? NSBox }).first(where: {
+      $0.boxType == .primary && !$0.isHiddenOrHasHiddenAncestor
+        && $0.visibleRect.contains(NSPoint(x: $0.bounds.midX, y: $0.bounds.minY + 10))
+    }) {
+      let point = box.convert(
+        NSPoint(x: box.bounds.midX, y: box.bounds.minY + 10), to: content)
+      let pixels = NSBitmapImageRep(cgImage: image)
+      let background = pixels.colorAt(x: 4, y: 4)!.usingColorSpace(.sRGB)!
+      let group = pixels.colorAt(x: Int(point.x * 2), y: image.height - Int(point.y * 2))!
+        .usingColorSpace(.sRGB)!
+      let backgroundLevel =
+        (background.redComponent + background.greenComponent + background.blueComponent) / 3
+      let groupLevel = (group.redComponent + group.greenComponent + group.blueComponent) / 3
+      print(
+        "surface \(section) \(name): window=\(Int(backgroundLevel * 255)) group=\(Int(groupLevel * 255))"
+      )
+    }
     CGImageDestinationAddImage(destination, image, nil)
     guard CGImageDestinationFinalize(destination) else { exit(1) }
     print(target.path)

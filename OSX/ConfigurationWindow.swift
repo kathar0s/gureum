@@ -12,7 +12,9 @@ import Foundation
 final class ConfiguraionWindowController: NSWindowController {
   override func windowDidLoad() {
     super.windowDidLoad()
-    window?.contentMinSize = NSSize(width: 600, height: 560)
+    window?.contentMinSize = NSSize(width: 500, height: 340)
+    window?.contentMaxSize = NSSize(width: 500, height: CGFloat.greatestFiniteMagnitude)
+    window?.autorecalculatesKeyViewLoop = true
   }
 }
 
