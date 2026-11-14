@@ -45,7 +45,7 @@ verify_baram_identity() {
 verify_baram() {
     verify_baram_identity "$1" || return 1
     local icon_name icon_path retina_path icon_size retina_size
-    for icon_name in baram baram2 baram3 baram3f baram390 baramrom barameng baramqw; do
+    for icon_name in baram baram2 baram3 baram3f baram390 baramrom barameng baramcm baramdv baramqw; do
         icon_path="$1/Contents/Resources/${icon_name}.png"
         retina_path="$1/Contents/Resources/${icon_name}@2x.png"
         if [[ ! -f "$icon_path" || ! -f "$retina_path" ]]; then

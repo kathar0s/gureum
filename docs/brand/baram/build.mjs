@@ -54,13 +54,15 @@ for (const [filename, size] of [
   copyFileSync(join(assets, `baram-app-icon-concept-${size}.png`), join(appIconAsset, filename));
 }
 const inputSourceVariants = [
-  { asset: 'baram', suffix: '', title: '한글 일반', label: '', background: '#14675F' },
+  { asset: 'baram', suffix: '', title: '안마태', label: 'AHN', background: '#14675F' },
   { asset: 'baram2', suffix: '-2', title: '두벌식', label: '2', background: '#14675F' },
   { asset: 'baram3', suffix: '-3', title: '세벌식', label: '3', background: '#14675F' },
   { asset: 'baram3f', suffix: '-3f', title: '세벌식 최종', label: '3F', background: '#14675F' },
   { asset: 'baram390', suffix: '-390', title: '세벌식 390', label: '390', background: '#14675F' },
   { asset: 'baramrom', suffix: '-rom', title: '한글 로마자', label: 'ROM', background: '#14675F' },
-  { asset: 'barameng', suffix: '-english', title: '영문 일반', label: '', background: '#7B4A24' },
+  { asset: 'barameng', suffix: '-english', title: '시스템 로마자', label: 'A', background: '#7B4A24' },
+  { asset: 'baramcm', suffix: '-cm', title: '콜맥', label: 'CM', background: '#7B4A24' },
+  { asset: 'baramdv', suffix: '-dv', title: '드보락', label: 'DV', background: '#7B4A24' },
   { asset: 'baramqw', suffix: '-qw', title: '쿼티', label: 'QW', background: '#7B4A24' },
 ];
 const inputSourceContents = asset => JSON.stringify({

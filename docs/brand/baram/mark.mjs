@@ -47,18 +47,16 @@ export function inputSourceIcon(title, options = {}) {
   const backgroundColor = options.background || '#14675F';
   const frameWidth = 176;
   const background = `<rect x="5" y="5" width="${frameWidth - 10}" height="118" rx="26" fill="${backgroundColor}"/>`;
-  const geometry = `<g transform="translate(9 9) scale(.86)">${strands(small, ['#F6F4EE'])}</g>`;
   const labelLength = Array.from(label).length;
-  const fittedLabel = ['390', 'ROM', 'QW'].includes(label);
-  const fontSize = fittedLabel ? 36 : labelLength === 2 ? 44 : 48;
-  const letterSpacing = fittedLabel ? -.5 : -1;
-  const labelBaseline = fittedLabel ? 78 : labelLength === 2 ? 80 : 82;
-  const horizontalScale = label === '390' ? .87 : label === 'ROM' ? .62 : label === 'QW' ? .82 : 1;
+  const fontSize = 92;
+  const letterSpacing = labelLength >= 3 ? -1.5 : -1;
+  const labelBaseline = 96;
+  const horizontalScale = label === 'AHN' ? .80 : label === '390' ? .94 : label === 'ROM' ? .70 : label === 'QW' ? .95 : 1;
   const labelPosition = horizontalScale === 1
-    ? 'x="140"'
-    : `x="0" transform="translate(140 0) scale(${horizontalScale} 1)"`;
+    ? 'x="88"'
+    : `x="0" transform="translate(88 0) scale(${horizontalScale} 1)"`;
   const layout = label
-    ? `<text ${labelPosition} y="${labelBaseline}" fill="#F6F4EE" font-family="Helvetica Neue, Arial, sans-serif" font-size="${fontSize}" font-weight="800" letter-spacing="${letterSpacing}" text-anchor="middle">${label}</text>`
+    ? `<text ${labelPosition} y="${labelBaseline}" fill="#F6F4EE" font-family="Apple SD Gothic Neo, Helvetica Neue, Arial, sans-serif" font-size="${fontSize}" font-weight="800" letter-spacing="${letterSpacing}" text-anchor="middle">${label}</text>`
     : '';
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${frameWidth}" height="128" viewBox="0 0 ${frameWidth} 128" role="img" aria-labelledby="title"><title id="title">${title}</title>${background}${geometry}${layout}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${frameWidth}" height="128" viewBox="0 0 ${frameWidth} 128" role="img" aria-labelledby="title"><title id="title">${title}</title>${background}${layout}</svg>`;
 }

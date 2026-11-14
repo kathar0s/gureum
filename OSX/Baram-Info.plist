@@ -39,15 +39,15 @@
 				<key>TISIntendedLanguage</key>
 				<string>en</string>
 				<key>tsInputModeAlternateMenuIconFileKey</key>
-				<string>barameng.png</string>
+				<string>baramcm.png</string>
 				<key>tsInputModeDefaultStateKey</key>
 				<false/>
 				<key>tsInputModeIsVisibleKey</key>
 				<true/>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>barameng.png</string>
+				<string>baramcm.png</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>barameng.png</string>
+				<string>baramcm.png</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeScriptKey</key>
@@ -62,15 +62,15 @@
 				<key>TISIntendedLanguage</key>
 				<string>en</string>
 				<key>tsInputModeAlternateMenuIconFileKey</key>
-				<string>barameng.png</string>
+				<string>baramdv.png</string>
 				<key>tsInputModeDefaultStateKey</key>
 				<false/>
 				<key>tsInputModeIsVisibleKey</key>
 				<true/>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>barameng.png</string>
+				<string>baramdv.png</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>barameng.png</string>
+				<string>baramdv.png</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeScriptKey</key>

@@ -1413,8 +1413,8 @@ class InputMethodIdentityTests: XCTestCase {
     let modes = try XCTUnwrap(component["tsInputModeListKey"] as? [String: [String: Any]])
     XCTAssertEqual(modes.count, GureumInputSource.allCases.count)
     let menuIcons = [
-      "colemak": "barameng.png",
-      "dvorak": "barameng.png",
+      "colemak": "baramcm.png",
+      "dvorak": "baramdv.png",
       "han2": "baram2.png",
       "han2classic": "baram2.png",
       "han3-2011": "baram3.png",
