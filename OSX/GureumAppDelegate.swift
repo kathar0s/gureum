@@ -97,4 +97,12 @@ class GureumAppDelegate: NSObject, NSApplicationDelegate, GureumApplicationDeleg
 
     watcher.reloadConfiguration()
   }
+
+  func applicationShouldHandleReopen(
+    _: NSApplication, hasVisibleWindows _: Bool
+  ) -> Bool {
+    NSApp.activate(ignoringOtherApps: true)
+    preferencesWindow.showWindow(nil)
+    return true
+  }
 }

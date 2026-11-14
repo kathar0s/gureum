@@ -77,6 +77,17 @@ class GureumTests: XCTestCase {
     XCTAssertTrue(child.view.superview === host.view)
   }
 
+  func testReopeningTheInputMethodShowsPreferencesAgain() {
+    preferencesWindow.close()
+    let delegate = GureumAppDelegate()
+
+    XCTAssertTrue(
+      delegate.applicationShouldHandleReopen(NSApp, hasVisibleWindows: false))
+    XCTAssertTrue(preferencesWindow.window?.isVisible == true)
+
+    preferencesWindow.close()
+  }
+
   func testNotifyUpdate() {
     let data = """
       {
@@ -678,28 +689,9 @@ class GureumTests: XCTestCase {
     }
   }
 
-  func testSequentialSebeolsikFinalReordersCompoundVowelWhenReorderIsEnabled() {
+  func testSequentialSebeolsikFinalDoesNotInferAChordFromReversedCompoundVowels() {
     let previousAutoReorder = Configuration.shared.hangulAutoReorder
     Configuration.shared.hangulAutoReorder = true
-    defer { Configuration.shared.hangulAutoReorder = previousAutoReorder }
-
-    for app in apps {
-      app.controller.setValue(
-        GureumInputSource.han3Final.rawValue, forTag: kTextServiceInputModePropertyTag,
-        client: app.client)
-
-      // 3F: k = ㄱ, f = ㅏ, v = ㅗ. A chord may arrive in this order,
-      // but ㅗ + ㅏ must be composed as ㅘ.
-      app.inputKeys("kfv")
-
-      XCTAssertEqual("과", app.client.string)
-      XCTAssertEqual("과", app.client.markedString())
-    }
-  }
-
-  func testSequentialSebeolsikFinalKeepsReversedCompoundVowelWhenReorderIsDisabled() {
-    let previousAutoReorder = Configuration.shared.hangulAutoReorder
-    Configuration.shared.hangulAutoReorder = false
     defer { Configuration.shared.hangulAutoReorder = previousAutoReorder }
 
     for app in apps {
@@ -1383,7 +1375,7 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
 class GureumMenuTests: XCTestCase {
   private func capabilities(
     lab: Bool = false, productKind: String? = nil, displayName: String? = nil,
-    bundleName: String? = "Fixture Input Method"
+    bundleName: String? = "Fixture Input Method", baramUpdateFeedEnabled: Bool = false
   ) throws -> GureumMenuCapabilities {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString).appendingPathExtension("bundle")
@@ -1394,6 +1386,7 @@ class GureumMenuTests: XCTestCase {
     info["GureumProductKind"] = productKind
     info["CFBundleDisplayName"] = displayName
     info["CFBundleName"] = bundleName
+    info["BaramUpdateFeedEnabled"] = baramUpdateFeedEnabled
     let data = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
     try data.write(to: contents.appendingPathComponent("Info.plist"))
     let bundle = try XCTUnwrap(Bundle(url: directory))
@@ -1451,14 +1444,15 @@ class GureumMenuTests: XCTestCase {
     XCTAssertEqual(
       capabilities.issuesURL?.absoluteString, "https://github.com/sionyuel/baram/issues")
     XCTAssertEqual(capabilities.sourceURL?.absoluteString, "https://github.com/sionyuel/baram")
-    XCTAssertTrue(capabilities.supportsUpdates)
+    XCTAssertFalse(capabilities.supportsUpdates)
     XCTAssertFalse(capabilities.supportsExperimentalUpdates)
   }
 
   func testBaramMenuOffersStableUpdatesWithoutDeveloperChannel() throws {
     let menu = GureumMenuBuilder(
       capabilities: try capabilities(
-        productKind: "baram", displayName: "바람 입력기", bundleName: "Baram"),
+        productKind: "baram", displayName: "바람 입력기", bundleName: "Baram",
+        baramUpdateFeedEnabled: true),
       includeDeveloperTools: true
     ).makeMenu()
 
@@ -1609,7 +1603,8 @@ class InputMethodIdentityTests: XCTestCase {
 
   private func baramIdentity(
     defaultsSuite: String = "com.sionyuel.Baram",
-    legacySuite: String = "io.github.kathar0s.GureumChordLab"
+    legacySuite: String = "io.github.kathar0s.GureumChordLab",
+    updateFeedEnabled: Bool = false
   ) throws -> InputMethodIdentity {
     try identity(infoDictionary: [
       "GureumInputSourcePrefix": "com.sionyuel.inputmethod.Baram",
@@ -1617,6 +1612,7 @@ class InputMethodIdentityTests: XCTestCase {
       "GureumProductKind": "baram",
       "GureumLegacyInputSourcePrefix": "io.github.kathar0s.inputmethod.GureumChordLab",
       "GureumLegacyDefaultsSuiteName": legacySuite,
+      "BaramUpdateFeedEnabled": updateFeedEnabled,
     ])
   }
 
@@ -1649,8 +1645,16 @@ class InputMethodIdentityTests: XCTestCase {
     XCTAssertTrue(identity.supportsPhysicalChording)
     XCTAssertFalse(identity.recordsChordDiagnostics)
     XCTAssertFalse(identity.supportsUpstreamUpdates)
-    XCTAssertTrue(identity.supportsUpdates)
+    XCTAssertFalse(identity.supportsUpdates)
     XCTAssertFalse(identity.supportsExperimentalUpdates)
+    XCTAssertNil(UpdateManager.feedURL(mode: .stable, identity: identity))
+    XCTAssertNil(UpdateManager.feedURL(mode: .experimental, identity: identity))
+  }
+
+  func testBaramUpdateFeedRequiresAnExplicitReleaseFlag() throws {
+    let identity = try baramIdentity(updateFeedEnabled: true)
+
+    XCTAssertTrue(identity.supportsUpdates)
     XCTAssertEqual(
       UpdateManager.feedURL(mode: .stable, identity: identity)?.absoluteString,
       "https://baram.sionyuel.com/version.json")
@@ -2920,12 +2924,84 @@ class ChordEmissionPolicyTests: IsolatedChordConfigurationTests {
   }
 
   func testOrderingPreservesOriginalOrderWithinEveryHangulRole() {
-    let policy = stubPolicy(values: [
-      0x6A: 0x110B, 0x6B: 0x1100, 0x66: 0x1161, 0x64: 0x1175, 0x73: 0x11AB, 0x78: 0x11A8,
-    ])
+    let policy = stubPolicy(
+      values: [
+        0x6A: 0x110B, 0x6B: 0x1100, 0x66: 0x1161, 0x64: 0x1175, 0x73: 0x11AB, 0x78: 0x11A8,
+      ])
     XCTAssertEqual(
       policy.order(group: group("sfdjkx"), keyboardIdentifier: "fixture").map(\.text).joined(),
       "jkfdsx")
+  }
+
+  func testPhysicalChordCanonicalizesAReversedCompoundVowelPair() {
+    let policy = stubPolicy(
+      id: "3f",
+      values: [
+        0x6B: 0x1100,  // k = ㄱ
+        0x66: 0x1161,  // f = ㅏ
+        0x76: 0x1169,  // v = ㅗ
+      ])
+
+    XCTAssertEqual(
+      policy.order(group: group("kfv"), keyboardIdentifier: "3f").map(\.text).joined(),
+      "kvf")
+    XCTAssertEqual(
+      policy.order(group: group("vfk"), keyboardIdentifier: "3f").map(\.text).joined(),
+      "kvf")
+  }
+
+  func testPhysicalChordPreservesReversedMedialsForOldHangulLayouts() {
+    let policy = stubPolicy(
+      id: "3y", type: "jaso-yet",
+      values: [
+        0x6B: 0x1100,  // k = ㄱ
+        0x66: 0x1161,  // f = ㅏ
+        0x76: 0x1169,  // v = ㅗ
+      ])
+
+    XCTAssertEqual(
+      policy.order(group: group("fvk"), keyboardIdentifier: "3y").map(\.text).joined(),
+      "kfv")
+  }
+
+  func testPhysicalChordPreservesNormalReversedMedialsForStrictFinal() {
+    let ordered = ChordEmissionPolicy().order(group: group("kfv"), keyboardIdentifier: "3fs")
+    XCTAssertEqual(ordered.map(\.text).joined(), "kfv")
+  }
+
+  func testPhysicalChordStrictFinalUsesItsVirtualCompoundVowelKey() {
+    Configuration.shared.hangulAutoReorder = false
+    let ordered = ChordEmissionPolicy().order(group: group("kf/"), keyboardIdentifier: "3fs")
+    XCTAssertEqual(ordered.map(\.text).joined(), "kf/")
+
+    let app = ModerateApp()
+    app.controller.setValue(
+      GureumInputSource.han3Final.rawValue, forTag: kTextServiceInputModePropertyTag,
+      client: app.client)
+    app.controller.receiver.composer.hangulComposer.setKeyboard(identifier: "3fs")
+    for stroke in ordered {
+      app.inputKey(
+        KeyCode(rawValue: stroke.keyCode)!,
+        modifiers: NSEvent.ModifierFlags(rawValue: stroke.modifiers))
+    }
+    XCTAssertEqual(app.client.string, "과")
+  }
+
+  func testPhysicalChordReversedCompoundVowelComposesWithoutSequentialAutoReorder() {
+    Configuration.shared.hangulAutoReorder = false
+    let ordered = ChordEmissionPolicy().order(group: group("kfv"), keyboardIdentifier: "3f")
+    XCTAssertEqual(ordered.map(\.text).joined(), "kvf")
+
+    let app = ModerateApp()
+    app.controller.setValue(
+      GureumInputSource.han3Final.rawValue, forTag: kTextServiceInputModePropertyTag,
+      client: app.client)
+    for stroke in ordered {
+      app.inputKey(
+        KeyCode(rawValue: stroke.keyCode)!,
+        modifiers: NSEvent.ModifierFlags(rawValue: stroke.modifiers))
+    }
+    XCTAssertEqual(app.client.string, "과")
   }
 
   func testStrictSelectionUsesTheSharedEffectiveIdentifierRule() {

@@ -34,6 +34,7 @@ class UpdateManager {
   static func feedURL(
     mode: UpdateMode, identity: InputMethodIdentity = .current
   ) -> URL? {
+    guard identity.supportsUpdates else { return nil }
     switch (identity.productKind, mode) {
     case (.upstream, .stable):
       return URL(string: "https://gureum.io/version.json")

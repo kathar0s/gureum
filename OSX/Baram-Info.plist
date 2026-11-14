@@ -4,6 +4,8 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>English</string>
+	<key>BaramUpdateFeedEnabled</key>
+	<false/>
 	<key>CFBundleDisplayName</key>
 	<string>Baram Input Method</string>
 	<key>CFBundleExecutable</key>

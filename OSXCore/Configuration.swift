@@ -25,6 +25,7 @@ public struct InputMethodIdentity {
   public let productKind: InputMethodProductKind
   public let legacyInputSourcePrefix: String?
   public let legacyDefaultsSuiteName: String?
+  public let baramUpdateFeedEnabled: Bool
 
   public static let current = InputMethodIdentity()
 
@@ -48,6 +49,8 @@ public struct InputMethodIdentity {
       bundle.object(forInfoDictionaryKey: "GureumLegacyInputSourcePrefix") as? String
     legacyDefaultsSuiteName =
       bundle.object(forInfoDictionaryKey: "GureumLegacyDefaultsSuiteName") as? String
+    baramUpdateFeedEnabled =
+      bundle.object(forInfoDictionaryKey: "BaramUpdateFeedEnabled") as? Bool ?? false
   }
 
   public var isChordLab: Bool { productKind == .lab }
@@ -56,7 +59,9 @@ public struct InputMethodIdentity {
   public var supportsPhysicalChording: Bool { productKind != .upstream }
   public var recordsChordDiagnostics: Bool { productKind == .lab }
   public var supportsUpstreamUpdates: Bool { productKind == .upstream }
-  public var supportsUpdates: Bool { productKind != .lab }
+  public var supportsUpdates: Bool {
+    productKind == .upstream || (productKind == .baram && baramUpdateFeedEnabled)
+  }
   public var supportsExperimentalUpdates: Bool { productKind == .upstream }
 
   public func identifier(for suffix: String) -> String {

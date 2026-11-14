@@ -39,7 +39,7 @@ struct GureumMenuCapabilities {
         displayName: displayName, websiteURL: URL(string: "https://baram.sionyuel.com"),
         helpURL: nil, issuesURL: URL(string: "https://github.com/sionyuel/baram/issues"),
         sourceURL: URL(string: "https://github.com/sionyuel/baram"), donationURL: nil,
-        supportsUpdates: true, supportsExperimentalUpdates: false)
+        supportsUpdates: identity.supportsUpdates, supportsExperimentalUpdates: false)
     }
     if identity.isChordLab {
       return GureumMenuCapabilities(

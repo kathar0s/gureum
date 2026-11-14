@@ -167,7 +167,7 @@ This is a macOS desktop input method. Preferences keep a 500 pt content width. T
 
 ## Content voice
 
-Use calm Korean with short, concrete labels. A setting title names the behavior; one secondary sentence explains the effect or compatibility target. “모아치기” describes automatic reorder, including a reversed compound-vowel pair when the active layout defines only the canonical order. “세벌식 정석 조합” selects the dedicated 3F/390 combination tables that constrain compound vowels and final clusters; it is not physical chord capture. “물리적 동시입력” is reserved for verified key-hold grouping. Avoid “완벽한”, “가장 빠른”, or “모든 앱 지원” without evidence.
+Use calm Korean with short, concrete labels. A setting title names the behavior; one secondary sentence explains the effect or compatibility target. “모아치기” describes libhangul's automatic choseong/jungseong/jongseong role reorder; it does not claim timing-aware physical chord capture or reverse every same-role pair. “세벌식 정석 조합” selects the dedicated 3F/390 combination tables that constrain compound vowels and final clusters. “물리적 동시입력” is reserved for verified key-hold grouping. Avoid “완벽한”, “가장 빠른”, or “모든 앱 지원” without evidence.
 
 Brand line proposal: **나의 바람대로, 한글이 흐르다.** Alternative short signature: **손끝의 바람, 글이 되다.** The line is a brand promise of intention, not a technical claim of perfect recognition.
 

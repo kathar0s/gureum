@@ -169,21 +169,31 @@ struct ChordEmissionPolicy {
       let mapping = mappingProvider.mapping(for: identifier), mapping.identifier == identifier,
       mapping.keyboardType == "jaso" || mapping.keyboardType == "jaso-yet"
     else { return original }
-    var ranked: [(index: Int, role: Role, stroke: ChordStroke)] = []
+    var ranked: [(index: Int, role: Role, scalar: UInt32, stroke: ChordStroke)] = []
     for (index, stroke) in original.enumerated() {
-      guard let role = role(for: stroke, mapping: mapping) else { return original }
-      ranked.append((index, role, stroke))
+      guard let classified = classification(for: stroke, mapping: mapping) else { return original }
+      ranked.append((index, classified.role, classified.scalar, stroke))
     }
     guard ranked.contains(where: { $0.role == .initial }),
       ranked.contains(where: { $0.role == .medial })
     else { return original }
-    return ranked.sorted {
+    var ordered = ranked.sorted {
       $0.role.rawValue == $1.role.rawValue
         ? $0.index < $1.index : $0.role.rawValue < $1.role.rawValue
-    }.map(\.stroke)
+    }
+    let medials = ordered.indices.filter { ordered[$0].role == .medial }
+    if identifier == "3f" || identifier == "39", mapping.keyboardType == "jaso",
+      medials.count == 2,
+      shouldReverseMedials(ordered[medials[0]].scalar, ordered[medials[1]].scalar)
+    {
+      ordered.swapAt(medials[0], medials[1])
+    }
+    return ordered.map(\.stroke)
   }
 
-  private func role(for stroke: ChordStroke, mapping: ChordLayoutMapping) -> Role? {
+  private func classification(
+    for stroke: ChordStroke, mapping: ChordLayoutMapping
+  ) -> (role: Role, scalar: UInt32)? {
     let flags = NSEvent.ModifierFlags(rawValue: stroke.modifiers)
     guard flags.intersection([.command, .control, .option, .function]).isEmpty else { return nil }
     let keyMap = flags.contains(.shift) ? keyMapUpper : keyMapLower
@@ -192,9 +202,20 @@ struct ChordEmissionPolicy {
       ascii < 128, let mapped = mapping.asciiToScalar[ascii]
     else { return nil }
     let scalar = hangul_vkeycode_to_keycode(mapped)
-    if hangul_is_choseong(scalar) { return .initial }
-    if hangul_is_jungseong(scalar) { return .medial }
-    if hangul_is_jongseong(scalar) { return .finalConsonant }
+    if hangul_is_choseong(scalar) { return (.initial, scalar) }
+    if hangul_is_jungseong(scalar) { return (.medial, scalar) }
+    if hangul_is_jongseong(scalar) { return (.finalConsonant, scalar) }
     return nil
+  }
+
+  private func shouldReverseMedials(_ first: UInt32, _ second: UInt32) -> Bool {
+    switch (first, second) {
+    case (0x1161, 0x1169), (0x1162, 0x1169), (0x1175, 0x1169),
+      (0x1165, 0x116E), (0x1166, 0x116E), (0x1175, 0x116E),
+      (0x1175, 0x1173):
+      return true
+    default:
+      return false
+    }
   }
 }
