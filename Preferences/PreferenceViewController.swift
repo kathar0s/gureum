@@ -297,6 +297,7 @@ private final class GureumShortcutView: MASShortcutView {
 
 @objc(PreferenceViewController)
 final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
+  private(set) var productIdentity = InputMethodIdentity.current
   @IBOutlet private var debugButton: NSButton!
   /// 옵션 키 동작.
   @IBOutlet private var optionKeyBehaviorButton: NSPopUpButton!
@@ -418,8 +419,29 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
     loadShortcutValues()
     setupShortcutViewValueChangeEvents()
 
+    configureUpdateControls()
+
+    debugButton.isHidden = true
+    buildSettingsForm()
+  }
+
+  func configureProductIdentity(_ identity: InputMethodIdentity) {
+    guard
+      productIdentity.productKind != identity.productKind
+        || productIdentity.supportsUpdates != identity.supportsUpdates
+    else { return }
+    productIdentity = identity
+    if isViewLoaded {
+      configureUpdateControls()
+      buildSettingsForm()
+    }
+  }
+
+  private func configureUpdateControls() {
     updateNotificationButton.state = isOn(configuration.updateNotification)
-    let identity = InputMethodIdentity.current
+    updateNotificationButton.isEnabled = true
+    updateNotificationExperimentalButton.isEnabled = true
+    let identity = productIdentity
     if !identity.supportsUpdates {
       updateNotificationButton.state = .off
       updateNotificationButton.isEnabled = false
@@ -436,9 +458,6 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
       updateNotificationExperimentalButton.state = isOn(
         configuration.updateNotificationExperimental)
     }
-
-    debugButton.isHidden = true
-    buildSettingsForm()
   }
 
   override func viewDidAppear() {
@@ -454,6 +473,7 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
     view.setFrameSize(NSSize(width: 500, height: 440))
     preferenceKeyViews.removeAll()
     buildingKeyViews.removeAll()
+    switchBindings.removeAll()
 
     sectionPicker = NSSegmentedControl(
       labels: sectionTitles, trackingMode: .selectOne,
@@ -587,28 +607,29 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
       )
     ]
     var applicationRows = [settingRow("Esc로 로마자 전환", control: escapeKeyApplicationMenu)]
-    if InputMethodIdentity.current.isBaram {
+    if productIdentity.isBaram {
       applicationRows.append(settingRow("자동 한글 변환", control: autocorrectionApplicationMenu))
     }
     let applicationHelp =
-      InputMethodIdentity.current.isBaram
-      ? "선택한 앱에서만 적용합니다. Esc는 로마자로 전환합니다. 자동 한글 변환은 바람의 로마자 모드에서 공백·Return·Tab을 누를 때 완전히 조합된 세벌식 단어만 바꿉니다. 예: jfshea → 안녕. 터미널·보안 입력은 제외됩니다."
+      productIdentity.isBaram
+      ? "선택한 앱에서만 적용합니다. Esc는 로마자로 전환합니다. 자동 한글 변환은 바람의 로마자 모드에서 공백·Return·Tab을 누를 때 완전히 조합된 세벌식 단어만 바꿉니다. 예: jfshea → 안녕. 일부 터미널 앱과 보안 입력은 제외됩니다."
       : "선택한 Vim·터미널·코드 편집기에서만 Esc 또는 Control+[로 한글 조합을 끝내고 로마자로 전환합니다."
     advancedSections.append(
       section("앱별 동작", rows: applicationRows, explanation: helperText(applicationHelp)))
     #if !USE_PREFPANE
-      if InputMethodIdentity.current.supportsPhysicalChording {
+      if productIdentity.supportsPhysicalChording {
         let toggle = NSSwitch()
         toggle.controlSize = .mini
         toggle.target = self
         toggle.action = #selector(physicalChordModeChanged(_:))
-        toggle.setAccessibilityLabel("물리적 키 묶기")
+        toggle.setAccessibilityLabel("동시에 누른 키 묶기")
         toggle.setAccessibilityHelp(
           "지원 세벌식의 모아 누른 키를 배열 기준 초성, 중성, 종성으로 정렬합니다. 경계 및 안전 복구에서는 입력 순서를 유지합니다.")
         physicalChordSwitch = toggle
         let permission = NSButton(
           title: "입력 모니터링 허용…", target: self, action: #selector(requestPhysicalChordPermission(_:)))
         permission.controlSize = .small
+        permission.setAccessibilityLabel("키 감지 권한 허용")
         physicalChordPermissionButton = permission
         let status = helperText("")
         physicalChordStatus = status
@@ -627,7 +648,7 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
         refreshPhysicalChordControls()
       }
     #endif
-    let identity = InputMethodIdentity.current
+    let identity = productIdentity
     if identity.supportsUpdates {
       var updateRows = [
         settingRow(
@@ -687,7 +708,7 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
         strict: configuration.hangulForceStrictCombinationRule)
       keyboardPreview?.reload(
         layoutIdentifier: previewLayout.identifier, layoutName: previewLayout.name)
-      if InputMethodIdentity.current.supportsPhysicalChording { refreshPhysicalChordControls() }
+      if productIdentity.supportsPhysicalChording { refreshPhysicalChordControls() }
     }
 
     @objc private func physicalChordModeChanged(_ sender: NSSwitch) {
@@ -930,7 +951,7 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
       guard
         let applications = chooseApplications(
           title: "자동 한글 변환을 사용할 앱 선택",
-          message: "바람의 로마자 모드에서 세벌식으로 완전히 조합되는 단어를 바꿉니다. 예: jfshea → 안녕. 터미널·보안 입력은 제외됩니다.")
+          message: "바람의 로마자 모드에서 세벌식으로 완전히 조합되는 단어를 바꿉니다. 예: jfshea → 안녕. 일부 터미널 앱과 보안 입력은 제외됩니다.")
       else { return }
       configuration.hangulLayoutAutocorrectionApplications = applications
     case "clear":
@@ -1256,7 +1277,7 @@ final class PreferenceViewController: NSViewController, NSTextFieldDelegate {
 
   @IBAction private func updateNotificationValueChanged(_ sender: NSButton) {
     configuration.updateNotification = sender.state == .on
-    if InputMethodIdentity.current.supportsExperimentalUpdates, !Bundle.main.isExperimental {
+    if productIdentity.supportsExperimentalUpdates, !Bundle.main.isExperimental {
       updateNotificationExperimentalButton.isEnabled = sender.state == .on
     }
     backgroundQueue.async {

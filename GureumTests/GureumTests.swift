@@ -1316,9 +1316,20 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
 }
 
 class PreferencesFormTests: IsolatedChordConfigurationTests {
-  private func form() throws -> (NSWindow, PreferenceViewController) {
-    let storyboard = NSStoryboard(name: "Configuration", bundle: .main)
-    let controller = try XCTUnwrap(storyboard.instantiateInitialController() as? NSWindowController)
+  private func form(identity: InputMethodIdentity? = nil) throws -> (
+    NSWindow, PreferenceViewController
+  ) {
+    let controller: NSWindowController
+    if let identity {
+      let host = PreferencePaneViewController()
+      host.productIdentity = identity
+      let window = NSWindow(contentViewController: host)
+      controller = ConfiguraionWindowController(window: window)
+      controller.windowDidLoad()
+    } else {
+      let storyboard = NSStoryboard(name: "Configuration", bundle: .main)
+      controller = try XCTUnwrap(storyboard.instantiateInitialController() as? NSWindowController)
+    }
     let window = try XCTUnwrap(controller.window)
     let host = try XCTUnwrap(window.contentViewController)
     _ = host.view
@@ -1331,6 +1342,18 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
       _ = controller
     }
     return (window, child)
+  }
+
+  private func identity(_ product: InputMethodProductKind) throws -> InputMethodIdentity {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString).appendingPathExtension("bundle")
+    let contents = directory.appendingPathComponent("Contents", isDirectory: true)
+    try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+    addTeardownBlock { try FileManager.default.removeItem(at: directory) }
+    let data = try PropertyListSerialization.data(
+      fromPropertyList: ["GureumProductKind": product.rawValue], format: .xml, options: 0)
+    try data.write(to: contents.appendingPathComponent("Info.plist"))
+    return InputMethodIdentity(bundle: try XCTUnwrap(Bundle(url: directory)))
   }
 
   private func descendants(_ view: NSView) -> [NSView] {
@@ -1367,8 +1390,7 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
   }
 
   func testBaramAutocorrectionUsesAnAppPickerWithClearOptInCopy() throws {
-    guard InputMethodIdentity.current.isBaram else { throw XCTSkip("Baram-only preference") }
-    let (_, child) = try form()
+    let (_, child) = try form(identity: identity(.baram))
     select(2, in: child)
     let views = descendants(child.view).filter { !$0.isHiddenOrHasHiddenAncestor }
     let menu = try XCTUnwrap(
@@ -1382,18 +1404,6 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
       views.compactMap { $0 as? NSTextField }.contains {
         $0.stringValue.contains("jfshea → 안녕") && $0.stringValue.contains("선택한 앱에서만")
       })
-    for appearance in [NSAppearance.Name.aqua, .darkAqua] {
-      child.view.appearance = NSAppearance(named: appearance)
-      child.view.layoutSubtreeIfNeeded()
-      let bitmap = try XCTUnwrap(child.view.bitmapImageRepForCachingDisplay(in: child.view.bounds))
-      child.view.cacheDisplay(in: child.view.bounds, to: bitmap)
-      let image = NSImage(size: child.view.bounds.size)
-      image.addRepresentation(bitmap)
-      let attachment = XCTAttachment(image: image)
-      attachment.name = "Baram autocorrection \(appearance.rawValue)"
-      attachment.lifetime = .keepAlways
-      add(attachment)
-    }
   }
 
   func testGroupsUsePrimaryBoxesAndMiniSwitches() throws {
@@ -1434,13 +1444,19 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
   }
 
   func testNavigationAndPopupsUseCompactNativeControlSizes() throws {
-    let (window, child) = try form()
+    for product in [InputMethodProductKind.upstream, .lab, .baram] {
+      try assertNavigationAndPopups(identity: identity(product))
+    }
+  }
+
+  private func assertNavigationAndPopups(identity: InputMethodIdentity) throws {
+    let (window, child) = try form(identity: identity)
     let views = descendants(child.view)
     XCTAssertTrue(views.compactMap { $0 as? NSSegmentedControl }.isEmpty)
     let navigation = try XCTUnwrap(window.toolbar?.items.first as? NSToolbarItemGroup)
     XCTAssertEqual(navigation.subitems.count, 3)
     let popups = views.compactMap { $0 as? NSPopUpButton }
-    XCTAssertEqual(popups.count, 4)
+    XCTAssertEqual(popups.count, identity.isBaram ? 5 : 4)
     XCTAssertTrue(popups.allSatisfy { $0.controlSize == .small })
     XCTAssertTrue(popups.allSatisfy { $0 is SystemSettingsPopUpButton })
     let option = try XCTUnwrap(popups.first { $0.accessibilityLabel() == "Option 키 동작" })
@@ -1516,14 +1532,27 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
   }
 
   func testEveryPageKeyLoopContainsOnlyItsVisibleControlsInReadingOrder() throws {
-    let (window, child) = try form()
-    var labels = [
+    for product in [InputMethodProductKind.upstream, .lab, .baram] {
+      try assertPageKeyLoops(identity: identity(product))
+    }
+  }
+
+  private func assertPageKeyLoops(identity: InputMethodIdentity) throws {
+    let (window, child) = try form(identity: identity)
+    var advanced = ["두벌식 종성 결합", "조합 상태 유지", "Esc로 로마자 전환"]
+    if identity.isBaram { advanced.append("자동 한글 변환") }
+    if identity.supportsPhysicalChording {
+      advanced.append(contentsOf: ["동시에 누른 키 묶기", "키 감지 권한 허용"])
+    }
+    if identity.supportsUpdates { advanced.append("업데이트 알림") }
+    if identity.supportsExperimentalUpdates { advanced.append("실험 버전 알림") }
+    let labels = [
       [
         "모아치기", "세벌식 정석 조합", "` 키 문자", "Shift+` 키 문자", "키보드 레이아웃",
         "Option 키 동작",
       ],
       ["한글 ↔ 로마자", "한자 및 이모지", "로마자로 전환", "한글로 전환", "오른쪽 전환 키", "키 감지 권한 열기", "키보드 열기"],
-      ["두벌식 종성 결합", "조합 상태 유지", "Esc로 로마자 전환", "업데이트 알림", "실험 버전 알림"],
+      advanced,
     ]
     for index in 0..<3 {
       select(index, in: child)

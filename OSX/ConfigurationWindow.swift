@@ -8,6 +8,7 @@
 
 import Cocoa
 import Foundation
+import GureumCore
 
 final class ConfiguraionWindowController: NSWindowController, NSToolbarDelegate {
   private static let settingsToolbarIdentifier = NSToolbar.Identifier("BaramSettingsToolbar")
@@ -99,6 +100,7 @@ final class ConfiguraionWindowController: NSWindowController, NSToolbarDelegate 
 }
 
 final class PreferencePaneViewController: NSViewController {
+  var productIdentity = InputMethodIdentity.current
   private(set) var preferenceViewController: PreferenceViewController?
   private let isAtLeast1015 = ProcessInfo().isOperatingSystemAtLeast(
     OperatingSystemVersion(majorVersion: 10, minorVersion: 15, patchVersion: 0))
@@ -146,6 +148,7 @@ final class PreferencePaneViewController: NSViewController {
       NSLog("Preferences lookup failed.")
       return viewForFailure()
     }
+    vc.configureProductIdentity(productIdentity)
     addChild(vc)
     preferenceViewController = vc
     let content = vc.view
