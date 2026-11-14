@@ -172,6 +172,7 @@ public class InputReceiver: InputTextDelegate {
       read: { client.attributedSubstring(from: $0)?.string })
     if let replacement {
       client.insertText(replacement.converted, replacementRange: replacement.range)
+      _ = input(event: .changeLayout(.hangul, false), client: client)
     }
   }
 

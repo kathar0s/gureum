@@ -1124,7 +1124,7 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
       app.inputText(boundary, key: key)
 
       XCTAssertEqual(app.client.string, "안녕" + boundary)
-      XCTAssertTrue(app.controller.receiver.composer.inputMode.hasSuffix("system"))
+      XCTAssertTrue(app.controller.receiver.composer.inputMode.hasSuffix("han3final"))
     }
   }
 
@@ -1133,6 +1133,23 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
     app.inputKeys("jfsheamfncj4")
     app.inputText(" ", key: .space)
     XCTAssertEqual(app.client.string, "안녕하세요 ")
+    XCTAssertTrue(app.controller.receiver.composer.inputMode.hasSuffix("han3final"))
+
+    app.inputKeys("jfshea")
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, "안녕하세요 안녕 ")
+  }
+
+  func testSuccessfulCorrectionSwitchesTheFollowingPhraseToHangul() {
+    let app = app()
+    app.inputKeys("jdkc")
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, "이게 ")
+    XCTAssertTrue(app.controller.receiver.composer.inputMode.hasSuffix("han3final"))
+
+    app.inputKeys("i9twld")
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, "이게 뭘지 ")
   }
 
   func testShiftFlagChangesDoNotDiscardThePendingThreeSetWord() {
