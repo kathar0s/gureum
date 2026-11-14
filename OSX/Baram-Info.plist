@@ -23,7 +23,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>${VERSION}</string>
 	<key>CFBundleSignature</key>
-	<string>yno1</string>
+	<string>Barm</string>
 	<key>CFBundleVersion</key>
 	<string>${VERSION}</string>
 	<key>ComponentInputModeDict</key>
