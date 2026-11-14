@@ -71,11 +71,13 @@ const inputSourceContents = asset => JSON.stringify({
   ],
   info: { version: 1, author: 'xcode' },
 }, null, 2) + '\n';
+const directInputSourceAssets = join(root, '../../../OSX/InputSourceIcons');
+mkdirSync(directInputSourceAssets, { recursive: true });
 for (const variant of inputSourceVariants) {
   const base = `baram-input-source-icon${variant.suffix}`;
   const svg = join(assets, `${base}.svg`);
   writeFileSync(svg, inputSourceIcon(`바람 ${variant.title} 입력 소스 아이콘`, variant));
-  for (const [width, height, suffix] of [[24, 16, '16'], [48, 32, '32'], [192, 128, 'preview']]) {
+  for (const [width, height, suffix] of [[22, 16, '16'], [44, 32, '32'], [176, 128, 'preview']]) {
     execFileSync('rsvg-convert', [
       '-w', `${width}`, '-h', `${height}`, svg,
       '-o', join(assets, `${base}-${suffix}.png`),
@@ -86,6 +88,8 @@ for (const variant of inputSourceVariants) {
   copyFileSync(join(assets, `${base}-16.png`), join(assetDirectory, `${variant.asset}.png`));
   copyFileSync(join(assets, `${base}-32.png`), join(assetDirectory, `${variant.asset}@2x.png`));
   writeFileSync(join(assetDirectory, 'Contents.json'), inputSourceContents(variant.asset));
+  copyFileSync(join(assets, `${base}-16.png`), join(directInputSourceAssets, `${variant.asset}.png`));
+  copyFileSync(join(assets, `${base}-32.png`), join(directInputSourceAssets, `${variant.asset}@2x.png`));
 }
 const prepared = readFileSync(join(root, 'sheet.html'), 'utf8')
   .replace('{{MARK_SYMBOLS}}', symbols())

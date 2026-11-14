@@ -25,7 +25,7 @@ usage() {
     echo "Builds a separately identified Baram input method."
 }
 
-verify_baram() {
+verify_baram_identity() {
     local bundle_id executable product_kind defaults_suite
     if [[ -L "$1" || ! -d "$1" ]]; then
         echo "Expected a real Baram app directory: $1" >&2
@@ -42,6 +42,25 @@ verify_baram() {
     fi
 }
 
+verify_baram() {
+    verify_baram_identity "$1" || return 1
+    local icon_name icon_path retina_path icon_size retina_size
+    for icon_name in baram baram2 baram3 baram3f baram390 baramrom barameng baramqw; do
+        icon_path="$1/Contents/Resources/${icon_name}.png"
+        retina_path="$1/Contents/Resources/${icon_name}@2x.png"
+        if [[ ! -f "$icon_path" || ! -f "$retina_path" ]]; then
+            echo "Missing direct Baram input-source icon: $icon_name" >&2
+            return 1
+        fi
+        icon_size=$(/usr/bin/sips -g pixelWidth -g pixelHeight "$icon_path" 2>/dev/null | awk '/pixelWidth/{w=$2}/pixelHeight/{h=$2}END{print w "x" h}')
+        retina_size=$(/usr/bin/sips -g pixelWidth -g pixelHeight "$retina_path" 2>/dev/null | awk '/pixelWidth/{w=$2}/pixelHeight/{h=$2}END{print w "x" h}')
+        if [[ "$icon_size" != 22x16 || "$retina_size" != 44x32 ]]; then
+            echo "Unexpected direct Baram icon size for $icon_name: $icon_size / $retina_size" >&2
+            return 1
+        fi
+    done
+}
+
 stop_installed_baram() {
     local baram_pid executable_path
     while IFS= read -r baram_pid; do
@@ -55,7 +74,7 @@ stop_installed_baram() {
 archive_installed_baram() {
     ARCHIVED_APP=''
     if [[ -e "$INSTALLED_APP" || -L "$INSTALLED_APP" ]]; then
-        verify_baram "$INSTALLED_APP"
+        verify_baram_identity "$INSTALLED_APP"
         stop_installed_baram
         local backup_root
         backup_root="${HOME}/Library/Application Support/Baram/Backups"

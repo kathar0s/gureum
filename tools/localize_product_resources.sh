@@ -39,3 +39,10 @@ while IFS= read -r -d '' strings_file; do
     /usr/libexec/PlistBuddy -c "Set :CFBundleName $localized_bundle_name" "$strings_file"
     /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $localized_display_name" "$strings_file"
 done < <(find "$resources_dir" -path '*.lproj/InfoPlist.strings' -print0)
+
+if [[ "$variant" == BARAM ]]; then
+    direct_icons_dir="${SRCROOT}/OSX/InputSourceIcons"
+    while IFS= read -r -d '' icon_file; do
+        /usr/bin/ditto "$icon_file" "${resources_dir}/$(basename "$icon_file")"
+    done < <(find "$direct_icons_dir" -maxdepth 1 -type f -name '*.png' -print0)
+fi

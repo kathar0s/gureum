@@ -45,17 +45,18 @@ export function standalone(id, title, options = {}) {
 export function inputSourceIcon(title, options = {}) {
   const label = options.label || '';
   const backgroundColor = options.background || '#14675F';
-  const frameWidth = 192;
+  const frameWidth = 176;
   const background = `<rect x="5" y="5" width="${frameWidth - 10}" height="118" rx="26" fill="${backgroundColor}"/>`;
   const geometry = `<g transform="translate(9 9) scale(.86)">${strands(small, ['#F6F4EE'])}</g>`;
   const labelLength = Array.from(label).length;
-  const fontSize = labelLength >= 3 ? 38 : labelLength === 2 ? 46 : 50;
-  const letterSpacing = labelLength >= 3 ? -1.5 : label === 'QW' ? -1 : -2;
-  const labelBaseline = labelLength >= 3 ? 78 : labelLength === 2 ? 80 : 82;
-  const horizontalScale = label === '390' ? .93 : label === 'ROM' ? .66 : label === 'QW' ? .72 : 1;
+  const fittedLabel = ['390', 'ROM', 'QW'].includes(label);
+  const fontSize = fittedLabel ? 36 : labelLength === 2 ? 44 : 48;
+  const letterSpacing = fittedLabel ? -.5 : -1;
+  const labelBaseline = fittedLabel ? 78 : labelLength === 2 ? 80 : 82;
+  const horizontalScale = label === '390' ? .87 : label === 'ROM' ? .62 : label === 'QW' ? .82 : 1;
   const labelPosition = horizontalScale === 1
-    ? 'x="149"'
-    : `x="0" transform="translate(149 0) scale(${horizontalScale} 1)"`;
+    ? 'x="140"'
+    : `x="0" transform="translate(140 0) scale(${horizontalScale} 1)"`;
   const layout = label
     ? `<text ${labelPosition} y="${labelBaseline}" fill="#F6F4EE" font-family="Helvetica Neue, Arial, sans-serif" font-size="${fontSize}" font-weight="800" letter-spacing="${letterSpacing}" text-anchor="middle">${label}</text>`
     : '';

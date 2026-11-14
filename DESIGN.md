@@ -123,7 +123,7 @@ Shape/elevation: native window chrome and stock `NSBox(.primary)` preference gro
 
 Motion: retain system menu/switch transitions. Respect Reduce Motion. No typing-time bounce, logo animation, or particle effects.
 
-Iconography: original **바람 궤적 B** mark; system SF Symbols for functional UI. Master geometry uses a 128-unit frame with 9-unit strokes and three open wind curls. The small optical version uses 11-unit strokes and simplified turns; do not scale the master unchanged for the menu. System input-source assets use a 3:2 badge at 24×16 px and 48×32 px: Hangul jade carries no label, `2`, `3`, `3F`, `390`, or `ROM`; Roman brown carries no label or `QW`. Every label shares one right-hand center axis. `390`, `ROM`, and `QW` are horizontally fitted to the same 54 px review-width without reducing vertical recognition. Menu-bar template symbols remain monochrome and must read on light/dark bars without a colored square. Keep at least 20% clear space around the standalone mark.
+Iconography: original **바람 궤적 B** mark; system SF Symbols for functional UI. Master geometry uses a 128-unit frame with 9-unit strokes and three open wind curls. The small optical version uses 11-unit strokes and simplified turns; do not scale the master unchanged for the menu. System input-source assets use a 22×16 pt badge with a 44×32 Retina representation: Hangul jade carries no label, `2`, `3`, `3F`, `390`, or `ROM`; Roman brown carries no label or `QW`. Every label shares one right-hand center axis. `390`, `ROM`, and `QW` use matched optical widths. The PNGs ship as direct bundle resources as well as asset-catalog fallbacks because TextInputMenuAgent preserves the wide direct-resource rendition but squeezed the catalog-only rendition. Keep at least 20% clear space around the standalone mark.
 
 `brand-sheet/recognition.png` compares the master, optical correction, a ₿ confusion reference, plain Latin B, and plain ㅂ at actual 16/18/32/128 px. It is a structural review grid, not a user study or proof of recall. Before approval, inspect the silhouette without a wordmark for B recognition, ₿ confusion, 3/ε confusion, and curl fill-in. Never claim recognition is established from geometry tests alone.
 
@@ -133,7 +133,7 @@ Iconography: original **바람 궤적 B** mark; system SF Symbols for functional
 |---|---|
 | Wordmark | Korean name primary; English descriptor secondary; keep “입력기” subordinate |
 | App icon | Three open wind strokes with a secondary B impression; direction approved, geometry pending visual approval and size testing |
-| Menu symbol | Menu-bar template is monochrome and optically simplified. System input-source rows use 3:2 jade or Roman-brown badges with layout labels, while the visible mode name remains the primary textual identifier |
+| Menu symbol | Menu-bar template is monochrome and optically simplified. System input-source rows use direct 22×16 jade or Roman-brown badges with layout labels, while the visible mode name remains the primary textual identifier |
 | Category navigation | App path: centered native preference toolbar with Input / Shortcuts / Advanced icons and fitted content height. prefPane fallback: native three-way segmented control |
 | Boolean setting | Native mini NSSwitch with VoiceOver name matching its visible row label; explanations belong to the group |
 | Value menu | Stock borderless regular NSPopUpButton with natural font/size and system-drawn arrow/hover/focus/type-select; no accessory style, custom cell, chip, or arrow overlay |

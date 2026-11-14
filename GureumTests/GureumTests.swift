@@ -1448,11 +1448,13 @@ class InputMethodIdentityTests: XCTestCase {
       let asset = root.appendingPathComponent("OSX/Assets.xcassets/\(stem).imageset")
       let contents = try Data(contentsOf: asset.appendingPathComponent("Contents.json"))
       XCTAssertNoThrow(try JSONSerialization.jsonObject(with: contents), stem)
-      for (filename, width, height) in [(assetName, 24, 16), ("\(stem)@2x.png", 48, 32)] {
+      for (filename, width, height) in [(assetName, 22, 16), ("\(stem)@2x.png", 44, 32)] {
         let data = try Data(contentsOf: asset.appendingPathComponent(filename))
         let image = try XCTUnwrap(NSBitmapImageRep(data: data), filename)
         XCTAssertEqual(image.pixelsWide, width, filename)
         XCTAssertEqual(image.pixelsHigh, height, filename)
+        let direct = root.appendingPathComponent("OSX/InputSourceIcons/\(filename)")
+        XCTAssertEqual(try Data(contentsOf: direct), data, filename)
       }
     }
 
