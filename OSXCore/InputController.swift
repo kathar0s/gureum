@@ -247,6 +247,12 @@ extension InputController {
         guard let key = KeyCode(rawValue: rawCode) else { return false }
         return key.isKeyMappable && ![.delete, .return, .tab, .space].contains(key)
       },
+      orderGroup: { [weak self] group in
+        guard let self = self else { return group.strokes }
+        return ChordEmissionPolicy().order(
+          group: group, keyboardIdentifier: self.receiver.composer.hangulComposer.keyboardIdentifier
+        )
+      },
       onDisabled: { _ in
         environment.reportSessionWarning("현재 앱에서 안전 중지 · 입력기를 다시 선택하세요.")
       },

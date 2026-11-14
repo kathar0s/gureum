@@ -117,12 +117,15 @@ final class HangulComposer: NSObject, Composer {
   private var _composedString: String
 
   let inputContext: HGInputContext
+  private(set) var keyboardIdentifier: String
   let configuration = Configuration.shared
 
   init(type: HangulComposer.ComposerType) {
     _commitString = ""
     _composedString = ""
-    let keyboardIdentifier = type.rawValue
+    let keyboardIdentifier = effectiveHangulKeyboardIdentifier(
+      type.rawValue, strictCombinationRule: Configuration.shared.hangulForceStrictCombinationRule)
+    self.keyboardIdentifier = keyboardIdentifier
     let inputContext = HGInputContext(keyboardIdentifier: keyboardIdentifier)!
     self.inputContext = inputContext
     self.inputContext.setOption(
@@ -311,12 +314,9 @@ extension HangulComposer {
   ///
   /// - Parameter identifier: `libhangul`의 `hangul_ic_select_keyboard`를 참고한다.
   func setKeyboard(identifier: String) {
-    if configuration.hangulForceStrictCombinationRule, identifier == "39" || identifier == "3f" {
-      let strictCombinationIdentifier = "\(identifier)s"
-      inputContext.setKeyboardWithIdentifier(strictCombinationIdentifier)
-    } else {
-      inputContext.setKeyboardWithIdentifier(identifier)
-    }
+    keyboardIdentifier = effectiveHangulKeyboardIdentifier(
+      identifier, strictCombinationRule: configuration.hangulForceStrictCombinationRule)
+    inputContext.setKeyboardWithIdentifier(keyboardIdentifier)
   }
 
   private func input(

@@ -18,6 +18,7 @@ final class ChordInputCoordinator {
   private let isEnabled: () -> Bool
   private let acceptsRelease: (Int) -> Bool
   private let replay: (ChordStroke) -> ChordTerminalOutcome
+  private let orderGroup: (StrokeGroup) -> [ChordStroke]
   private let onDisabled: (ChordFlushReason) -> Void
   private let watchdog: TimeInterval
   private let orphanLifetime: TimeInterval
@@ -51,6 +52,7 @@ final class ChordInputCoordinator {
     isEnabled: @escaping () -> Bool, acceptsRelease: @escaping (Int) -> Bool = { _ in true },
     watchdog: TimeInterval = 2,
     orphanLifetime: TimeInterval = 0.25, maxOrphans: Int = 32, maxStrokes: Int = 64,
+    orderGroup: @escaping (StrokeGroup) -> [ChordStroke] = { $0.strokes },
     onDisabled: @escaping (ChordFlushReason) -> Void = { _ in },
     replay: @escaping (ChordStroke) -> ChordTerminalOutcome
   ) {
@@ -64,6 +66,7 @@ final class ChordInputCoordinator {
     self.maxStrokes = maxStrokes
     self.onDisabled = onDisabled
     self.replay = replay
+    self.orderGroup = orderGroup
     observer = source.addObserver { [weak self] event in self?.receive(event) }
   }
 
@@ -294,7 +297,7 @@ final class ChordInputCoordinator {
     defer { isReplaying = false }
     while !replayGroups.isEmpty {
       let next = replayGroups.removeFirst()
-      for stroke in next.strokes {
+      for stroke in validatedOrder(for: next) {
         guard outstanding.remove(stroke.id) != nil else { continue }
         let outcome = replay(stroke)
         let terminal =
@@ -303,6 +306,19 @@ final class ChordInputCoordinator {
         recordTermination(stroke.id, outcome: terminal, reason: next.reason)
       }
     }
+  }
+
+  private func validatedOrder(for group: StrokeGroup) -> [ChordStroke] {
+    guard group.reason == .allReleased else { return group.strokes }
+    let original = group.strokes
+    let proposed = orderGroup(group)
+    guard proposed.count == original.count,
+      Set(original.map(\.id)).count == original.count,
+      Set(proposed.map(\.id)).count == original.count
+    else { return original }
+    let originals = Dictionary(uniqueKeysWithValues: original.map { ($0.id, $0) })
+    guard proposed.allSatisfy({ originals[$0.id] == $0 }) else { return original }
+    return proposed
   }
 
   private func terminate(_ id: UInt64, outcome: ChordTerminalOutcome, reason: ChordFlushReason) {

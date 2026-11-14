@@ -22,6 +22,7 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		A7C006000000000000000001 /* ChordEmissionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C006000000000000000011 /* ChordEmissionPolicy.swift */; };
 		A7C005000000000000000001 /* PhysicalKeyEventSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C005000000000000000011 /* PhysicalKeyEventSource.swift */; };
 		A7C005000000000000000002 /* ChordGroupingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C005000000000000000012 /* ChordGroupingEngine.swift */; };
 		A7C005000000000000000003 /* ChordInputCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C005000000000000000013 /* ChordInputCoordinator.swift */; };
@@ -287,6 +288,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A7C006000000000000000011 /* ChordEmissionPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChordEmissionPolicy.swift; sourceTree = "<group>"; };
 		A7C005000000000000000011 /* PhysicalKeyEventSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicalKeyEventSource.swift; sourceTree = "<group>"; };
 		A7C005000000000000000012 /* ChordGroupingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChordGroupingEngine.swift; sourceTree = "<group>"; };
 		A7C005000000000000000013 /* ChordInputCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChordInputCoordinator.swift; sourceTree = "<group>"; };
@@ -604,6 +606,7 @@
 				A7C005000000000000000011 /* PhysicalKeyEventSource.swift */,
 				A7C005000000000000000012 /* ChordGroupingEngine.swift */,
 				A7C005000000000000000013 /* ChordInputCoordinator.swift */,
+				A7C006000000000000000011 /* ChordEmissionPolicy.swift */,
 				871B807B2153DDFA0013EE69 /* InputMethodServer.swift */,
 				389289BC217B331B00F94F2C /* Composer.swift */,
 				38D3E42A21213E9700751191 /* HangulComposer.swift */,
@@ -1131,6 +1134,7 @@
 				A7C005000000000000000001 /* PhysicalKeyEventSource.swift in Sources */,
 				A7C005000000000000000002 /* ChordGroupingEngine.swift in Sources */,
 				A7C005000000000000000003 /* ChordInputCoordinator.swift in Sources */,
+				A7C006000000000000000001 /* ChordEmissionPolicy.swift in Sources */,
 				19136D73234090AA00A0BF3C /* SearchComposer.swift in Sources */,
 				38B9551022A833E900A9D6E1 /* SystemConfigurationWatcher.swift in Sources */,
 				3881869121EB2DC0004B7FDB /* Debug.swift in Sources */,
