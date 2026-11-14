@@ -139,7 +139,7 @@ Iconography: original **바람 궤적 B** mark; system SF Symbols for functional
 | Value menu | Borderless small NSPopUpButton retaining native menu/hover/focus/type-select behavior, with a semantic-color circular `chevron.up.chevron.down` accessory matching current System Settings |
 | Two-choice setting | The same native popup language as other value settings; Option reuses its existing popup/action |
 | Special-character key | Two 72 pt native text fields configure unshifted and Shift+grave output; one grapheme only, empty restores the active layout's default |
-| Automatic Hangul conversion | Baram-only scope picker under Advanced / App behavior: off, all apps, or multiple selected apps. Copy names the Roman-mode boundary trigger, complete-Sebeolsik criterion, and exclusions without claiming language detection |
+| Automatic Hangul conversion | Baram-only scope picker under Advanced / App behavior: off, all apps, or multiple selected apps. The current Roman word remains marked text until whitespace commits the original or complete Sebeolsik result once; success also switches to Hangul. Previously committed document text is not read or replaced |
 | Shortcut capture | Existing MASShortcut behavior with consistent width and accessible label |
 | System support | Always-visible compact groups and native Open buttons; no disclosure or inline-bezel links |
 | Installer | Straight instructions, concrete version/architecture/signature status, scoped backup/rollback |

@@ -12,9 +12,14 @@ import Foundation
 
 class VirtualApp: NSObject {
   let controller: MockInputController
-  let client = MockInputClient()
+  let client: MockInputClient
 
-  override init() {
+  override convenience init() {
+    self.init(client: MockInputClient())
+  }
+
+  init(client: MockInputClient) {
+    self.client = client
     controller = MockInputController(
       server: InputMethodServer.shared.server, delegate: client, client: client)
     super.init()

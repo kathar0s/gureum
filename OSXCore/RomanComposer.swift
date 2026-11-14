@@ -46,6 +46,9 @@ final class RomanComposer: Composer {
   }
 
   private var _commitString: String?
+  private(set) var bufferedPhysicalKeys = ""
+  private var bufferedRomanOutput = ""
+  var hasBufferedWord: Bool { !bufferedRomanOutput.isEmpty }
   private var _composerType: RomanComposer.ComposerType
 
   private let keyMap: [Character: Character]
@@ -59,11 +62,11 @@ final class RomanComposer: Composer {
   // MARK: Composer 프로토콜 구현
 
   var composedString: String {
-    return ""
+    return bufferedRomanOutput
   }
 
   var originalString: String {
-    return _commitString ?? ""
+    return (_commitString ?? "") + bufferedRomanOutput
   }
 
   var commitString: String {
@@ -84,10 +87,35 @@ final class RomanComposer: Composer {
     return dequeued ?? ""
   }
 
-  func cancelComposition() {}
+  func cancelComposition() {
+    finishBufferedWord()
+  }
+
+  func appendBufferedKey(_ physical: String, output: String) {
+    bufferedPhysicalKeys += physical
+    bufferedRomanOutput += output
+  }
+
+  func deleteBufferedKey() {
+    if !bufferedPhysicalKeys.isEmpty { bufferedPhysicalKeys.removeLast() }
+    if !bufferedRomanOutput.isEmpty { bufferedRomanOutput.removeLast() }
+  }
+
+  func finishBufferedWord(replacingWith replacement: String? = nil) {
+    guard hasBufferedWord else { return }
+    _commitString = (_commitString ?? "") + (replacement ?? bufferedRomanOutput)
+    bufferedPhysicalKeys = ""
+    bufferedRomanOutput = ""
+  }
 
   func clearCompositionContext() {
     _commitString = nil
+    bufferedPhysicalKeys = ""
+    bufferedRomanOutput = ""
+  }
+
+  func clear() {
+    clearCompositionContext()
   }
 
   func map(text: String?, key: KeyCode, modifiers: NSEvent.ModifierFlags) -> Character? {

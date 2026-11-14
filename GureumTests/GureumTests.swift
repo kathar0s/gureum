@@ -1087,11 +1087,29 @@ class GureumTests: XCTestCase {
   //    }
 }
 
+private final class UnreadableRomanInputClient: MockInputClient {
+  override func attributedSubstring(from range: NSRange) -> NSAttributedString! { nil }
+
+  override func markedRange() -> NSRange {
+    let marked = super.markedRange()
+    return marked.location == NSNotFound
+      ? NSRange(location: NSNotFound, length: NSNotFound) : marked
+  }
+
+  override func selectedRange() -> NSRange {
+    if super.markedRange().location != NSNotFound {
+      return NSRange(location: 0, length: 0)
+    }
+    return super.selectedRange()
+  }
+}
+
 class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
   private func app(
-    romanSource: GureumInputSource = .system, enabled: Bool = true, secure: Bool = false
+    romanSource: GureumInputSource = .system, enabled: Bool = true, secure: Bool = false,
+    client: MockInputClient = MockInputClient()
   ) -> VirtualApp {
-    let app = ModerateApp()
+    let app = ModerateApp(client: client)
     app.controller.receiver.romanAutocorrectionAvailable = { true }
     app.controller.receiver.romanAutocorrectionSecureInput = { secure }
     app.controller.receiver.romanAutocorrectionKnownEnglishWord = { word in
@@ -1111,6 +1129,8 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
     XCTAssertEqual(RomanLayoutAutocorrector.convert("jfshea", keyboard: "3f"), "안녕")
     XCTAssertEqual(RomanLayoutAutocorrector.convert("jfs", keyboard: "3f"), "안")
     XCTAssertEqual(RomanLayoutAutocorrector.convert("j/r", keyboard: "3f"), "왜")
+    XCTAssertEqual(RomanLayoutAutocorrector.convert("kgo4B", keyboard: "3f"), "그쵸?")
+    XCTAssertEqual(RomanLayoutAutocorrector.convert("jvhgw", keyboard: "3f"), "오늘")
     for word in ["if", "or", "it", "he", "me"] {
       XCTAssertNil(RomanLayoutAutocorrector.convert(word, keyboard: "3f"))
     }
@@ -1205,6 +1225,22 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
     XCTAssertEqual(app.client.string, "안녕 ")
   }
 
+  func testShiftKeyDownCanFinishASentenceInsideTheMarkedWord() {
+    let app = app()
+    app.inputKeys("kgo4")
+    for flags: NSEvent.ModifierFlags in [.shift, []] {
+      let event = NSEvent.keyEvent(
+        with: .flagsChanged, location: .zero, modifierFlags: flags, timestamp: 0,
+        windowNumber: 0, context: nil, characters: "", charactersIgnoringModifiers: "",
+        isARepeat: false, keyCode: UInt16(KeyCode.shift.rawValue))!
+      _ = app.controller.handle(event, client: app.client)
+      if flags == .shift { app.inputKey(.ansiB, modifiers: .shift) }
+    }
+    XCTAssertEqual(app.client.markedString(), "kgo4B")
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, "그쵸? ")
+  }
+
   func testOnlyTheTypedWordRangeIsReplacedAfterUnicodeText() {
     let app = app()
     app.client.string = "🙂 앞 문장 "
@@ -1222,6 +1258,16 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
       app.inputText(" ", key: .space)
     }
     XCTAssertEqual(app.client.string, "hello world swift apple yes if or it he me ")
+  }
+
+  func testSentencePunctuationDoesNotBypassTheEnglishWordProtection() {
+    for word in ["yes.", "yes,", "\"yes\"", "hello!", "yes,yes", "yes.yes"] {
+      let app = app()
+      app.inputKeys(word)
+      app.inputText(" ", key: .space)
+      XCTAssertEqual(app.client.string, word + " ")
+      XCTAssertTrue(app.controller.receiver.composer.inputMode.hasSuffix("system"))
+    }
   }
 
   func testFeatureIsOffWithoutAnAllowedApplication() {
@@ -1263,9 +1309,10 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
     XCTAssertEqual(app.client.string, "1jfshea Jjfshea /jfshea jfshea.com ")
   }
 
-  func testChangedDocumentAndMovedCaretInvalidateThePendingWord() {
+  func testExternalEditsAndMouseBoundariesCommitTheOriginalMarkedWord() {
     let app = app()
     app.inputKeys("jfshea")
+    app.controller.commitComposition(app.client)
     app.client.string = "abcdef"
     app.client.setSelectedRange(NSRange(location: 6, length: 0))
     app.inputText(" ", key: .space)
@@ -1273,35 +1320,39 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
 
     let moved = self.app()
     moved.inputKeys("jfshea")
+    var tracking: ObjCBool = false
+    _ = moved.controller.mouseDown(
+      onCharacterIndex: 3, coordinate: .zero, withModifier: 0,
+      continueTracking: &tracking, client: moved.client)
     moved.client.setSelectedRange(NSRange(location: 3, length: 0))
     moved.inputText(" ", key: .space)
-    // The existing mock host restores its empty marked range before default insertion.
-    // The correction must still preserve the Roman word when the caret was moved.
+    // Native mouse/external commit callbacks end marked composition before moving the caret.
     XCTAssertEqual(moved.client.string, "jfshea ")
   }
 
   func testSelectionAndMarkedTextAreNeverAutocorrected() {
     let app = app()
-    app.inputKeys("jfshea")
+    app.client.string = "replace"
     app.client.setSelectedRange(NSRange(location: 0, length: 6))
+    app.inputKeys("jfshea")
     app.inputText(" ", key: .space)
-    XCTAssertEqual(app.client.string, "jfshea ")
+    XCTAssertFalse(app.client.string.contains("안녕"))
 
     let marked = self.app()
-    marked.inputKeys("jfshea")
     marked.client.setMarkedText(
-      "jfshea", selectedRange: NSRange(location: 6, length: 0),
-      replacementRange: NSRange(location: 0, length: 6))
+      "existing", selectedRange: NSRange(location: 8, length: 0),
+      replacementRange: NSRange(location: 0, length: 0))
+    marked.inputKeys("jfshea")
     marked.inputText(" ", key: .space)
     XCTAssertFalse(marked.client.string.contains("안녕"))
   }
 
-  func testDeleteExternalCommitAndLayoutChangesResetTheBuffer() {
+  func testBackspaceEditsTheMarkedWordAndExternalCommitsKeepTheOriginal() {
     let app = app()
     app.inputKeys("jfsheax")
     app.inputDelete()
     app.inputText(" ", key: .space)
-    XCTAssertEqual(app.client.string, "jfshea ")
+    XCTAssertEqual(app.client.string, "안녕 ")
 
     let committed = self.app()
     committed.inputKeys("jfshea")
@@ -1326,6 +1377,26 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
     app.inputText(" ", key: .space)
 
     XCTAssertEqual(app.client.string, "jfshea")
+    XCTAssertTrue(app.controller.receiver.composer.inputMode.hasSuffix("han3final"))
+  }
+
+  func testSystemInputModeChangeFromHangulAllowsTheFirstRomanWordToConvert() {
+    let app = app()
+    app.controller.setValue(
+      GureumInputSource.han3Final.rawValue, forTag: kTextServiceInputModePropertyTag,
+      client: app.client)
+    app.inputKeys("jfs")
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, "안 ")
+
+    app.controller.setValue(
+      GureumInputSource.system.rawValue, forTag: kTextServiceInputModePropertyTag,
+      client: app.client)
+    app.inputKeys("jfshea")
+    XCTAssertEqual(app.client.markedString(), "jfshea")
+    app.inputText(" ", key: .space)
+
+    XCTAssertEqual(app.client.string, "안 안녕 ")
     XCTAssertTrue(app.controller.receiver.composer.inputMode.hasSuffix("han3final"))
   }
 
@@ -1375,33 +1446,60 @@ class HangulLayoutAutocorrectionTests: IsolatedChordConfigurationTests {
       InputReceiver.autocorrectionBundleIdentifier(client: nil, frontmostApplication: nil))
   }
 
-  func testStateTrackerRejectsSelectionMarkedTextModifiersAndClientChanges() {
-    let owner = NSObject()
-    let other = NSObject()
-    for invalid in ["selection", "marked", "modifier", "client", "unreadable", "cursor"] {
-      var tracker = RomanLayoutAutocorrector()
-      var document = ""
-      for character in "jfshea" {
-        let text = String(character)
-        let key = keyMapReversed[text]!.0
-        XCTAssertNil(
-          tracker.consider(
-            key: key, modifiers: [], output: text,
-            selection: NSRange(location: document.utf16.count, length: 0),
-            marked: NSRange(location: NSNotFound, length: 0), client: ObjectIdentifier(owner),
-            mode: "system", keyboard: "3f", enabled: true, secureInput: false,
-            read: { (document as NSString).substring(with: $0) }))
-        document += text
-      }
-      let replacement = tracker.consider(
-        key: .space, modifiers: invalid == "modifier" ? .command : [], output: " ",
-        selection: NSRange(
-          location: invalid == "cursor" ? 3 : 6, length: invalid == "selection" ? 1 : 0),
-        marked: NSRange(location: 0, length: invalid == "marked" ? 6 : 0),
-        client: ObjectIdentifier(invalid == "client" ? other : owner), mode: "system",
-        keyboard: "3f", enabled: true, secureInput: false,
-        read: { invalid == "unreadable" ? nil : (document as NSString).substring(with: $0) })
-      XCTAssertNil(replacement, invalid)
+  func testBufferedRomanWordIsMarkedUntilTheBoundary() {
+    let app = app()
+    app.inputKeys("jfshea")
+    XCTAssertEqual(app.client.markedString(), "jfshea")
+    XCTAssertEqual(app.controller.receiver.composer.commitString, "")
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, "안녕 ")
+    XCTAssertEqual(app.client.markedString(), "")
+  }
+
+  func testMarkedWordSurvivesUnavailableDocumentReadsAndReportedRangeChurn() {
+    let app = app(client: UnreadableRomanInputClient())
+    app.inputKeys("jvhgw")
+    XCTAssertEqual(app.client.markedString(), "jvhgw")
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, "오늘 ")
+  }
+
+  func testChangingClientsCommitsTheOriginalWordOnlyToItsOwner() {
+    let app = app()
+    app.inputKeys("jfshea")
+    let otherClient = MockInputClient()
+    let result = app.controller.receiver.input(
+      text: "x", key: .ansiX, modifiers: [], client: otherClient)
+    if !result.processed {
+      otherClient.insertText("x", replacementRange: NSRange(location: NSNotFound, length: 0))
+    }
+    XCTAssertEqual(app.client.string, "jfshea")
+    XCTAssertEqual(otherClient.string, "x")
+    XCTAssertFalse(app.controller.receiver.composer.romanComposer.hasBufferedWord)
+  }
+
+  func testWordLengthLimitCommitsOriginalWithoutDroppingOrConvertingASuffix() {
+    let app = app()
+    let longWord = String(repeating: "x", count: 65) + "jfshea"
+    app.inputKeys(longWord)
+    app.inputText(" ", key: .space)
+    XCTAssertEqual(app.client.string, longWord + " ")
+  }
+
+  func testRealWorldKeySequencesCommitAsOneWord() {
+    for (keys, expected) in [
+      ("j/r", "왜"), ("jfs", "안"), ("jfsheamfncj4", "안녕하세요"),
+      ("jdktq;/f", "이것봐"), ("kgo4B", "그쵸?"), ("jvhgw", "오늘"),
+      ("jdlchgs", "이제는"),
+    ] {
+      let app = app()
+      app.inputKeys(keys)
+      XCTAssertEqual(app.client.markedString(), keys)
+      XCTAssertEqual(app.controller.receiver.composer.commitString, "")
+      app.inputText(" ", key: .space)
+      XCTAssertEqual(app.client.string, expected + " ", keys)
+      XCTAssertEqual(app.client.markedString(), "")
+      XCTAssertTrue(app.controller.receiver.composer.inputMode.hasSuffix("han3final"))
     }
   }
 

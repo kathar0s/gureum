@@ -13,99 +13,12 @@ import InputMethodKit
 
 let debugInputReceiver = false
 
-/// Tracks only a word typed through this receiver. No surrounding document is retained.
-struct RomanLayoutAutocorrector {
-  struct Replacement: Equatable {
-    let range: NSRange
-    let converted: String
-  }
+/// Converts an input-method-owned physical key sequence without inspecting document text.
+enum RomanLayoutAutocorrector {
+  private static let sentencePunctuation = CharacterSet(charactersIn: ".,!?;:'\"()~…“”‘’")
 
-  private var physicalKeys = ""
-  private var romanOutput = ""
-  private var start: Int?
-  private var client: ObjectIdentifier?
-  private var mode = ""
-  private var keyboard = ""
-  private var mayStartWord = true
-
-  mutating func reset(suppressUntilBoundary: Bool = false) {
-    physicalKeys = ""
-    romanOutput = ""
-    start = nil
-    client = nil
-    mode = ""
-    keyboard = ""
-    mayStartWord = !suppressUntilBoundary
-  }
-
-  mutating func consider(
-    key: KeyCode, modifiers: NSEvent.ModifierFlags, output: String?, selection: NSRange,
-    marked: NSRange, client: ObjectIdentifier, mode: String, keyboard: String,
-    enabled: Bool, secureInput: Bool, isKnownRomanWord: (String) -> Bool = { _ in false },
-    read: (NSRange) -> String?
-  ) -> Replacement? {
-    guard enabled, !secureInput, (0...(Int.max - 64)).contains(selection.location),
-      selection.length == 0,
-      marked.length == 0,
-      modifiers.intersection([.capsLock, .command, .control, .option, .function]).isEmpty
-    else {
-      reset(suppressUntilBoundary: true)
-      return nil
-    }
-
-    if self.client != nil,
-      self.client != client || self.mode != mode || self.keyboard != keyboard
-    {
-      reset()
-    }
-    if let start,
-      selection.location != start + romanOutput.utf16.count
-        || read(NSRange(location: start, length: romanOutput.utf16.count)) != romanOutput
-    {
-      reset(suppressUntilBoundary: true)
-    }
-
-    // Whitespace is deliberately the only automatic boundary in the first version.
-    // Punctuation may belong to a URL, identifier, or a shell command.
-    if key == .space || key == .return || key == .tab {
-      defer { reset() }
-      guard let start, !isKnownRomanWord(romanOutput),
-        let converted = Self.convert(physicalKeys, keyboard: keyboard)
-      else {
-        return nil
-      }
-      return Replacement(
-        range: NSRange(location: start, length: romanOutput.utf16.count),
-        converted: converted)
-    }
-
-    let physicalMap = modifiers.contains(.shift) ? keyMapUpper : keyMapLower
-    guard physicalMap.indices.contains(key.rawValue),
-      let physical = physicalMap[key.rawValue], Self.isPrintableASCII(physical),
-      let output, output.unicodeScalars.count == 1,
-      output.unicodeScalars.allSatisfy({ (33...126).contains($0.value) }), physicalKeys.count < 64
-    else {
-      reset(suppressUntilBoundary: true)
-      return nil
-    }
-    if start == nil {
-      guard mayStartWord else { return nil }
-      if selection.location > 0 {
-        guard let previous = read(NSRange(location: selection.location - 1, length: 1)),
-          previous.unicodeScalars.allSatisfy({ CharacterSet.whitespacesAndNewlines.contains($0) })
-        else {
-          reset(suppressUntilBoundary: true)
-          return nil
-        }
-      }
-      start = selection.location
-      self.client = client
-      self.mode = mode
-      self.keyboard = keyboard
-    }
-    physicalKeys += physical
-    romanOutput += output
-    return nil
+  static func englishWordCandidates(_ output: String) -> [String] {
+    output.components(separatedBy: sentencePunctuation).filter { !$0.isEmpty }
   }
 
   static func convert(_ keys: String, keyboard: String) -> String? {
@@ -121,16 +34,14 @@ struct RomanLayoutAutocorrector {
       result += representableString(ucsString: context.commitUCSString)
     }
     result += representableString(ucsString: context.flushUCSString())
-    guard !result.isEmpty,
-      result.unicodeScalars.allSatisfy({ (0xAC00...0xD7A3).contains($0.value) })
+    guard result.unicodeScalars.contains(where: { (0xAC00...0xD7A3).contains($0.value) }),
+      result.unicodeScalars.allSatisfy({
+        (0xAC00...0xD7A3).contains($0.value) || sentencePunctuation.contains($0)
+      })
     else { return nil }
     return result
   }
 
-  private static func isPrintableASCII(_ value: String) -> Bool {
-    value.unicodeScalars.count == 1
-      && value.unicodeScalars.allSatisfy { (33...126).contains($0.value) }
-  }
 }
 
 public class InputReceiver: InputTextDelegate {
@@ -139,7 +50,8 @@ public class InputReceiver: InputTextDelegate {
   weak var controller: InputController!
   var inputting: Bool = false
   var hasSelectionRange: Bool = false
-  private var romanLayoutAutocorrector = RomanLayoutAutocorrector()
+  private weak var bufferedRomanClient: AnyObject?
+  private var romanAutocorrectionSuppressed = false
   var romanAutocorrectionAvailable: () -> Bool = { InputMethodIdentity.current.isBaram }
   var romanAutocorrectionSecureInput: () -> Bool = {
     PhysicalKeyEventSource.shared.secureInputEnabled
@@ -157,7 +69,15 @@ public class InputReceiver: InputTextDelegate {
   }
 
   func resetRomanAutocorrection() {
-    romanLayoutAutocorrector.reset()
+    guard composer.romanComposer.hasBufferedWord else { return }
+    romanAutocorrectionSuppressed = true
+    composer.romanComposer.finishBufferedWord()
+    let owner = bufferedRomanClient as? (IMKTextInput & IMKUnicodeTextInput) ?? inputClient
+    let original = composer.romanComposer.dequeueCommitString()
+    if !original.isEmpty {
+      owner.insertText(original, replacementRange: NSRange(location: NSNotFound, length: 0))
+    }
+    bufferedRomanClient = nil
   }
 
   static func autocorrectionBundleIdentifier(
@@ -168,16 +88,17 @@ public class InputReceiver: InputTextDelegate {
     return nil
   }
 
-  private func autocorrectRomanWord(
+  private func bufferedRomanInput(
     text: String?, key: KeyCode, modifiers: NSEvent.ModifierFlags,
     client: IMKTextInput & IMKUnicodeTextInput
-  ) {
+  ) -> InputResult? {
     let configuration = Configuration.shared
     guard composer.delegate is RomanComposer,
       let source = GureumInputSource(rawValue: configuration.lastHangulInputMode)
     else {
       resetRomanAutocorrection()
-      return
+      romanAutocorrectionSuppressed = true
+      return nil
     }
     let output =
       composer.romanComposer.map(text: text, key: key, modifiers: modifiers)
@@ -188,19 +109,66 @@ public class InputReceiver: InputTextDelegate {
     let bundleIdentifier = Self.autocorrectionBundleIdentifier(
       client: client.bundleIdentifier(),
       frontmostApplication: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
-    let replacement = romanLayoutAutocorrector.consider(
-      key: key, modifiers: modifiers, output: output, selection: client.selectedRange(),
-      marked: client.markedRange(), client: ObjectIdentifier(client as AnyObject),
-      mode: composer.inputMode, keyboard: keyboard,
-      enabled: romanAutocorrectionAvailable()
-        && configuration.usesHangulLayoutAutocorrection(for: bundleIdentifier),
-      secureInput: romanAutocorrectionSecureInput(),
-      isKnownRomanWord: romanAutocorrectionKnownEnglishWord,
-      read: { client.attributedSubstring(from: $0)?.string })
-    if let replacement {
-      client.insertText(replacement.converted, replacementRange: replacement.range)
-      _ = input(event: .changeLayout(.hangul, false), client: client)
+    let roman = composer.romanComposer
+    if let owner = bufferedRomanClient, owner !== (client as AnyObject) {
+      resetRomanAutocorrection()
     }
+    guard romanAutocorrectionAvailable(),
+      configuration.usesHangulLayoutAutocorrection(for: bundleIdentifier),
+      !romanAutocorrectionSecureInput(),
+      modifiers.intersection([.capsLock, .command, .control, .option, .function]).isEmpty
+    else {
+      resetRomanAutocorrection()
+      return nil
+    }
+    if key == .space || key == .return || key == .tab {
+      defer { romanAutocorrectionSuppressed = false }
+      guard roman.hasBufferedWord else { return nil }
+      let englishCandidates = RomanLayoutAutocorrector.englishWordCandidates(roman.composedString)
+      let isKnownEnglish =
+        !englishCandidates.isEmpty
+        && englishCandidates.allSatisfy(romanAutocorrectionKnownEnglishWord)
+      let converted =
+        isKnownEnglish
+        ? nil : RomanLayoutAutocorrector.convert(roman.bufferedPhysicalKeys, keyboard: keyboard)
+      roman.finishBufferedWord(replacingWith: converted)
+      bufferedRomanClient = nil
+      if converted != nil {
+        _ = input(event: .changeLayout(.hangul, false), client: client)
+      }
+      return InputResult(processed: false, action: .commit)
+    }
+    if key == .delete, roman.hasBufferedWord {
+      roman.deleteBufferedKey()
+      if !roman.hasBufferedWord { bufferedRomanClient = nil }
+      return .processed
+    }
+    guard !romanAutocorrectionSuppressed else { return nil }
+    let physicalMap = modifiers.contains(.shift) ? keyMapUpper : keyMapLower
+    guard physicalMap.indices.contains(key.rawValue),
+      let physical = physicalMap[key.rawValue],
+      physical.unicodeScalars.count == 1,
+      physical.unicodeScalars.allSatisfy({ (33...126).contains($0.value) }),
+      let output, output.unicodeScalars.count == 1,
+      output.unicodeScalars.allSatisfy({ (33...126).contains($0.value) }),
+      roman.bufferedPhysicalKeys.count < 64
+    else {
+      resetRomanAutocorrection()
+      return nil
+    }
+    if !roman.hasBufferedWord {
+      let selection = client.selectedRange()
+      let marked = client.markedRange()
+      guard selection.location != NSNotFound, selection.length == 0,
+        marked.location == NSNotFound || marked.length == 0
+      else {
+        romanAutocorrectionSuppressed = true
+        return nil
+      }
+      bufferedRomanClient = client as AnyObject
+    }
+    roman.appendBufferedKey(physical, output: output)
+    return .processed
   }
 
   init(
@@ -282,20 +250,21 @@ public class InputReceiver: InputTextDelegate {
       }
     }
 
-    autocorrectRomanWord(text: string, key: keyCode, modifiers: flags, client: sender)
-
     dlog(
       debugLogging, "LOGGING::KEY::(%@)(%ld)(%lu)",
       string?.replacingOccurrences(of: "\n", with: "\\n") ?? "(nil)", keyCode.rawValue,
       flags.rawValue)
 
     let hadComposedString = !_internalComposedString.isEmpty
-    let result = input2(text: string, keyCode: keyCode, modifiers: flags, client: sender)
+    let result =
+      bufferedRomanInput(text: string, key: keyCode, modifiers: flags, client: sender)
+      ?? input2(text: string, keyCode: keyCode, modifiers: flags, client: sender)
 
     // 합성 후보가 있다면 보여준다
     InputMethodServer.shared.showOrHideCandidates(controller: controller)
 
     inputting = true
+    defer { inputting = false }
 
     if result.action != .none {
       cancelComposition()
@@ -329,6 +298,7 @@ public class InputReceiver: InputTextDelegate {
         layout == .toggleByCapsLock || layout == .toggleByRightKey ? .toggle : layout
       let result = composer.changeLayout(innerLayout, client: sender)
       let changedMode = previousMode != composer.inputMode
+      if changedMode { romanAutocorrectionSuppressed = false }
       if changedMode { controller.endPhysicalLayoutSession() }
       // 합성 후보가 있다면 보여준다
       InputMethodServer.shared.showOrHideCandidates(controller: controller)
@@ -502,8 +472,10 @@ extension InputReceiver {  // IMKStateSetting
         break
       }
       if value != composer.inputMode {
+        let previousMode = composer.inputMode
         commitComposition(sender)
         composer.inputMode = value
+        if composer.inputMode != previousMode { romanAutocorrectionSuppressed = false }
       }
     default:
       dlog(true, "**** UNKNOWN TAG %ld !!! ****", tag)
