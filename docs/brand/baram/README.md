@@ -1,7 +1,7 @@
 ---
 tags: [brand, baram, sionyuel, design-system, assets]
 created: 2026-11-14
-status: v0.3 — 이름·도메인·바람획 ㅂ 개념 확정 / 최종 기하 검토 초안
+status: v0.4 — 이름·도메인·바람 궤적 B 방향 반영 / 최종 기하 검토 초안
 ---
 
 # 바람 입력기 브랜드 원본
@@ -15,15 +15,15 @@ status: v0.3 — 이름·도메인·바람획 ㅂ 개념 확정 / 최종 기하 
 | 파일 | 역할 |
 |---|---|
 | `sheet.html` | 8쪽 시트의 편집 템플릿. `build.mjs`가 마크 기하를 넣어 PDF 생성 |
-| `mark.mjs` | 추천 마스터·작은 크기 보정·두 대안의 기하 원본. 수치는 여기서만 변경 |
+| `mark.mjs` | 추천 마스터·작은 크기 보정의 기하 원본. 수치는 여기서만 변경 |
 | `tokens.css` | 브랜드 문서 색·글꼴·모서리 토큰 |
 | `build.mjs` | Chrome PDF 및 8개 페이지 PNG 생성, 선택적 Obsidian 복사 |
 | `assets/preferences-input-*.png` | G007 실제 Preferences.prefPane의 라이트·다크 렌더 증거 |
 | `brand-sheet/baram-brand-sheet.pdf` | 생성된 8쪽 PDF |
 | `brand-sheet/page-1.png` … `page-8.png` | 1200×750 페이지 미리보기 |
-| `recognition.html` / `brand-sheet/recognition.png` | 16/32/128 px, 워드마크 없는 실루엣 비교판 |
+| `recognition.html` / `brand-sheet/recognition.png` | 16/18/32/128 px, 워드마크 없는 실루엣 비교판 |
 | `assets/baram-mark-master.svg` / `baram-mark-small.svg` | 생성된 원본 벡터와 작은 크기 광학 보정 |
-| `assets/baram-app-icon-concept.svg` | 1024 정사각, 두 가닥 색을 구분한 앱 아이콘 검토안 |
+| `assets/baram-app-icon-concept.svg` | 1024 정사각, 비취 바탕과 종이색 단색 획의 앱 아이콘 검토안 |
 
 ```sh
 cd /Users/nexus/workspace/kathar0s/gureum
@@ -37,9 +37,9 @@ node docs/brand/baram/build.mjs --sync-obsidian
 
 **바람 입력기 / Baram Input Method**, 공식 배포 도메인 **baram.sionyuel.com**. 바람은 구름을 움직이는 자연의 힘이자 사용자가 이루고 싶은 마음입니다. 추천 문장은 **나의 바람대로, 한글이 흐르다.**
 
-확정된 개념은 **바람획 ㅂ**입니다. 두 평행한 바람이 들어와 ㅂ의 기둥과 속공간을 만들고, 아래 획이 오른쪽 꼬리로 이어집니다. 바람 기호를 글자 옆에 붙이지 않습니다. 아래의 길쭉한 속공간이 고유한 표정입니다. 대안 A는 빈바람(채움/속공간), 대안 B는 맞물린 흐름입니다. 개념은 사용자 방향을 반영했고 최종 기하는 아직 검토 전입니다.
+확정된 방향은 **바람 궤적 B**입니다. 살짝 휜 세로 기둥과 위·아래의 바람 말림이 한 흐름처럼 만나 영문 B를 먼저 만듭니다. 위아래로 겹친 두 공간은 한글 ㅂ을 보조적으로 떠올리게 하지만, ㅂ 우선 인식을 주장하지 않습니다. 바람 기호를 글자 옆에 붙이지 않습니다. 개념은 사용자가 제공한 손그림 방향을 반영했고 최종 기하는 아직 검토 전입니다.
 
-작은 크기는 획 12, 짧은 입구, 넓힌 내부 공간과 짧은 출구를 사용합니다. 마스터는 획 10, 곡선 출구를 사용합니다. 큰 앱 아이콘에서는 종이색·온기색으로 두 가닥을 구분할 수 있지만 메뉴바는 단색입니다. `recognition.png`는 일반 바람·구름·ㅂ과 16/32/128 px로 비교한 자료이며 사용자 인지 실험 결과는 아닙니다.
+작은 크기는 획 12, 곧은 기둥, 단순한 두 볼과 짧은 안쪽 갈고리를 사용합니다. 마스터는 획 9와 열린 말림을 사용합니다. 기본 앱 아이콘과 메뉴바는 단색이며, 온기색은 큰 크기 선택안에만 제한합니다. `recognition.png`는 ₿·일반 B·일반 ㅂ과 16/18/32/128 px로 비교한 자료이며 사용자 인지 실험 결과는 아닙니다.
 
 ## 색과 대비
 
@@ -70,7 +70,7 @@ node docs/brand/baram/build.mjs --sync-obsidian
 
 ## 남은 일
 
-- [ ] 바람획 ㅂ의 최종 기하·실제 크기 인식 검토, 색·자산 라이선스 확정.
+- [ ] 바람 궤적 B의 최종 기하·실제 크기 인식 검토, 색·자산 라이선스 확정.
 - [ ] 최종 워드마크 외곽선, 16–1024 px 자산 및 앱 아이콘 레이어.
 - [ ] 실제 Mac 메뉴·VoiceOver·두 기기 검증.
 - [ ] 정식 명칭·상표 확인 및 과거 바람 개발자 연락 시도.

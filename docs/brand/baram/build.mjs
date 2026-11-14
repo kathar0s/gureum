@@ -26,10 +26,10 @@ const profile = mkdtempSync(join(tmpdir(), 'baram-brand-chrome.'));
 for (const [id, name, options] of [
   ['master', 'baram-mark-master', {}],
   ['small', 'baram-mark-small', {}],
-  ['master', 'baram-app-icon-concept', { background: '#14675F', twoTone: true, size: 1024 }],
+  ['master', 'baram-app-icon-concept', { background: '#14675F', size: 1024 }],
 ]) {
   const svg = join(assets, `${name}.svg`);
-  writeFileSync(svg, standalone(id, `바람획 비읍 ${name}`, options));
+  writeFileSync(svg, standalone(id, `바람 궤적 B ${name}`, options));
   for (const size of name.includes('app-icon') ? [128, 1024] : [16, 32, 128]) {
     execFileSync('rsvg-convert', ['-w', `${size}`, '-h', `${size}`, svg, '-o', join(assets, `${name}-${size}.png`)]);
   }
@@ -50,7 +50,7 @@ if (!/^Pages:\s+8$/m.test(info) || !/1200 x 750 pts/.test(info)) {
   throw new Error(`Unexpected PDF shape:\n${info}`);
 }
 execFileSync('pdftoppm', ['-png', '-r', '72', pdf, join(output, 'page')], { stdio: 'pipe' });
-const rows = [16, 32, 128].map(size => `<tr><th>${size} px</th>${['wind-b', 'wind-b-small', 'generic-wind', 'generic-cloud', 'plain-b'].map(id => `<td><svg width="${size}" height="${size}" aria-label="${id} ${size}px"><use href="#${id}"/></svg></td>`).join('')}</tr>`).join('\n');
+const rows = [16, 18, 32, 128].map(size => `<tr><th>${size} px</th>${['wind-b', 'wind-b-small', 'bitcoin-b', 'plain-latin-b', 'plain-b'].map(id => `<td><svg width="${size}" height="${size}" aria-label="${id} ${size}px"><use href="#${id}"/></svg></td>`).join('')}</tr>`).join('\n');
 const recognition = readFileSync(join(root, 'recognition.html'), 'utf8')
   .replace('{{MARK_SYMBOLS}}', symbols())
   .replace('{{RECOGNITION_ROWS}}', rows)

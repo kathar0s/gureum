@@ -65,8 +65,8 @@ class GureumTests: XCTestCase {
     let window = try XCTUnwrap(controller.window)
     defer { window.close() }
 
-    XCTAssertEqual(window.contentMinSize, NSSize(width: 500, height: 340))
-    XCTAssertEqual(window.contentMaxSize.width, 500)
+    XCTAssertEqual(window.contentMinSize, NSSize(width: 500, height: 300))
+    XCTAssertEqual(window.contentMaxSize, NSSize(width: 500, height: 680))
     XCTAssertTrue(window.autorecalculatesKeyViewLoop)
     let host = try XCTUnwrap(window.contentViewController)
     _ = host.view
@@ -941,15 +941,16 @@ class GureumTests: XCTestCase {
 }
 
 class PreferencesFormTests: IsolatedChordConfigurationTests {
-  private func form() throws -> (NSWindow, NSViewController) {
+  private func form() throws -> (NSWindow, PreferenceViewController) {
     let storyboard = NSStoryboard(name: "Configuration", bundle: .main)
     let controller = try XCTUnwrap(storyboard.instantiateInitialController() as? NSWindowController)
     let window = try XCTUnwrap(controller.window)
     let host = try XCTUnwrap(window.contentViewController)
     _ = host.view
-    let child = try XCTUnwrap(host.children.first)
+    let child = try XCTUnwrap(host.children.first as? PreferenceViewController)
     host.view.layoutSubtreeIfNeeded()
     child.viewDidAppear()
+    RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.05))
     addTeardownBlock {
       window.close()
       _ = controller
@@ -961,21 +962,26 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
     [view] + view.subviews.flatMap { descendants($0) }
   }
 
-  private func select(_ index: Int, in view: NSView) throws -> NSSegmentedControl {
-    let picker = try XCTUnwrap(descendants(view).compactMap { $0 as? NSSegmentedControl }.first)
-    picker.selectedSegment = index
-    XCTAssertTrue(NSApp.sendAction(try XCTUnwrap(picker.action), to: picker.target, from: picker))
-    return picker
+  private func select(_ index: Int, in controller: PreferenceViewController) {
+    controller.selectSettingsSection(at: index)
   }
 
   func testHostUsesCompactFixedWidthAndRetainsThePreferenceController() throws {
     let (window, child) = try form()
 
-    XCTAssertEqual(window.contentLayoutRect.size, NSSize(width: 500, height: 440))
-    XCTAssertEqual(window.contentMinSize, NSSize(width: 500, height: 340))
-    XCTAssertEqual(window.contentMaxSize.width, 500)
+    XCTAssertEqual(window.contentLayoutRect.width, 500)
+    XCTAssertEqual(
+      window.contentLayoutRect.height, child.preferredContentHeight(for: 0), accuracy: 0.5)
+    XCTAssertEqual(window.contentMinSize, NSSize(width: 500, height: 300))
+    XCTAssertEqual(window.contentMaxSize, NSSize(width: 500, height: 680))
     XCTAssertTrue(window.autorecalculatesKeyViewLoop)
     XCTAssertNotNil(child.parent)
+    let toolbar = try XCTUnwrap(window.toolbar)
+    XCTAssertEqual(toolbar.displayMode, .iconAndLabel)
+    XCTAssertEqual(toolbar.sizeMode, .regular)
+    let navigation = try XCTUnwrap(toolbar.items.first as? NSToolbarItemGroup)
+    XCTAssertEqual(navigation.subitems.map(\.label), child.settingsSectionTitles)
+    XCTAssertEqual(navigation.selectedIndex, 0)
   }
 
   func testGroupsUsePrimaryBoxesAndMiniSwitches() throws {
@@ -996,7 +1002,7 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
     let rows = views.filter { view in
       view.constraints.contains {
         ($0.firstItem as? NSView) === view && $0.firstAttribute == .height
-          && $0.relation == .greaterThanOrEqual && $0.constant == 36
+          && $0.relation == .greaterThanOrEqual && $0.constant == 34
       }
     }
     XCTAssertFalse(rows.isEmpty)
@@ -1015,17 +1021,18 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
     }
   }
 
-  func testNavigationAndPopupsRetainNativeRegularControlSizes() throws {
-    let (_, child) = try form()
+  func testNavigationAndPopupsUseCompactNativeControlSizes() throws {
+    let (window, child) = try form()
     let views = descendants(child.view)
-    let picker = try XCTUnwrap(views.compactMap { $0 as? NSSegmentedControl }.first)
-    XCTAssertEqual(picker.controlSize, .regular)
+    XCTAssertTrue(views.compactMap { $0 as? NSSegmentedControl }.isEmpty)
+    let navigation = try XCTUnwrap(window.toolbar?.items.first as? NSToolbarItemGroup)
+    XCTAssertEqual(navigation.subitems.count, 3)
     let popups = views.compactMap { $0 as? NSPopUpButton }
     XCTAssertEqual(popups.count, 3)
-    XCTAssertTrue(popups.allSatisfy { $0.controlSize == .regular })
+    XCTAssertTrue(popups.allSatisfy { $0.controlSize == .small })
     let option = try XCTUnwrap(popups.first { $0.accessibilityLabel() == "Option 키 동작" })
     XCTAssertFalse(option.pullsDown)
-    XCTAssertFalse(option.isBordered)
+    XCTAssertTrue(option.isBordered)
     for popup in popups {
       XCTAssertFalse(
         popup.constraints.contains {
@@ -1051,16 +1058,17 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
       labels[2].append("오류 처리 검증을 위해 앱 종료")
     #endif
     for index in 0..<3 {
-      let picker = try select(index, in: child.view)
-      XCTAssertTrue(window.initialFirstResponder === picker)
-      var visited: [NSView] = []
-      var next = picker.nextKeyView
-      while let control = next, control !== picker, visited.count < 32 {
+      select(index, in: child)
+      child.viewDidAppear()
+      let first = try XCTUnwrap(window.initialFirstResponder)
+      var visited = [first]
+      var next = first.nextKeyView
+      while let control = next, control !== first, visited.count < 32 {
         XCTAssertFalse(control.isHiddenOrHasHiddenAncestor)
         visited.append(control)
         next = control.nextKeyView
       }
-      XCTAssertTrue(next === picker)
+      XCTAssertTrue(next === first)
       let readingOrder = visited.compactMap { control -> String? in
         if control is MASShortcutView {
           return control.superview?.subviews.compactMap { $0 as? NSTextField }.first?.stringValue
@@ -1074,14 +1082,14 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
 
   func testPermissionAndSystemShortcutRowsAreVisibleWithoutDisclosures() throws {
     let (_, child) = try form()
-    _ = try select(1, in: child.view)
+    select(1, in: child)
     let views = descendants(child.view)
     let buttons = views.compactMap { $0 as? NSButton }
     XCTAssertFalse(buttons.contains { $0.bezelStyle == .disclosure })
     for label in ["입력 모니터링 열기", "키보드 열기"] {
       let button = try XCTUnwrap(buttons.first { $0.accessibilityLabel() == label })
       XCTAssertFalse(button.isHiddenOrHasHiddenAncestor)
-      XCTAssertEqual(button.controlSize, .regular)
+      XCTAssertEqual(button.controlSize, .small)
       XCTAssertEqual(button.title, "열기…")
     }
     let labels = views.compactMap { $0 as? NSTextField }.filter { !$0.isHiddenOrHasHiddenAncestor }
@@ -1102,7 +1110,7 @@ class PreferencesFormTests: IsolatedChordConfigurationTests {
 
   func testDebugDeveloperGroupIsPlainAndHasNoDisclosure() throws {
     let (_, child) = try form()
-    _ = try select(2, in: child.view)
+    select(2, in: child)
     let views = descendants(child.view).filter { !$0.isHiddenOrHasHiddenAncestor }
     #if DEBUG
       XCTAssertTrue(views.compactMap { $0 as? NSTextField }.contains { $0.stringValue == "개발자" })

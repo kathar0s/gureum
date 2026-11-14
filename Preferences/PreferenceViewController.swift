@@ -100,6 +100,7 @@ final class PreferenceViewController: NSViewController {
   private var preferenceKeyViews: [[NSView]] = []
   private var buildingKeyViews: [NSView] = []
   private var sectionPicker: NSSegmentedControl!
+  private let sectionTitles = ["입력", "단축키", "고급"]
   #if !USE_PREFPANE
     private var physicalChordSwitch: NSSwitch?
     private var physicalChordStatus: NSTextField?
@@ -204,14 +205,18 @@ final class PreferenceViewController: NSViewController {
     buildingKeyViews.removeAll()
 
     sectionPicker = NSSegmentedControl(
-      labels: ["입력", "단축키", "고급"], trackingMode: .selectOne,
+      labels: sectionTitles, trackingMode: .selectOne,
       target: self, action: #selector(selectSettingsSection(_:)))
     sectionPicker.segmentStyle = .automatic
     sectionPicker.controlSize = .regular
     sectionPicker.selectedSegment = 0
     sectionPicker.setAccessibilityLabel("설정 카테고리")
     sectionPicker.translatesAutoresizingMaskIntoConstraints = false
-    view.addSubview(sectionPicker)
+    #if USE_PREFPANE
+      view.addSubview(sectionPicker)
+    #else
+      sectionPicker.isHidden = true
+    #endif
 
     let layoutMenu = NSPopUpButton(frame: .zero, pullsDown: false)
     layoutMenu.addItems(withTitles: inputSources.map(\.localizedName))
@@ -226,7 +231,7 @@ final class PreferenceViewController: NSViewController {
     styleMenu(rightToggleKeyButton, label: "오른쪽 전환 키")
     styleMenu(optionKeyBehaviorButton, label: "Option 키 동작")
 
-    var inputSections: [NSView] = [
+    let inputSections: [NSView] = [
       section(
         "한글 조합",
         rows: [
@@ -248,37 +253,6 @@ final class PreferenceViewController: NSViewController {
           settingRow("Option 키 동작", control: optionKeyBehaviorButton),
         ], explanation: helperText("선택한 레이아웃은 로마자 입력과 한글 입력 중 로마자 단축키에 함께 적용됩니다.")),
     ]
-    #if !USE_PREFPANE
-      if InputMethodIdentity.current.isChordLab {
-        let toggle = NSSwitch()
-        toggle.controlSize = .mini
-        toggle.target = self
-        toggle.action = #selector(physicalChordModeChanged(_:))
-        toggle.setAccessibilityLabel("물리적 키 묶기")
-        toggle.setAccessibilityHelp(
-          "지원 세벌식의 모아 누른 키를 배열 기준 초성, 중성, 종성으로 정렬합니다. 경계 및 안전 복구에서는 입력 순서를 유지합니다.")
-        physicalChordSwitch = toggle
-        let permission = NSButton(
-          title: "입력 모니터링 허용…", target: self, action: #selector(requestPhysicalChordPermission(_:)))
-        permission.controlSize = .regular
-        physicalChordPermissionButton = permission
-        let status = helperText("")
-        physicalChordStatus = status
-        inputSections.append(
-          section(
-            "실험 · 물리적 키 묶기",
-            rows: [
-              settingRow("물리적 키 묶기", control: toggle),
-              settingRow("키 해제 관찰 권한", control: permission),
-            ], explanation: status))
-        NotificationCenter.default.removeObserver(
-          self, name: PhysicalKeyEventSource.statusDidChange, object: nil)
-        NotificationCenter.default.addObserver(
-          self, selector: #selector(physicalChordSourceChanged(_:)),
-          name: PhysicalKeyEventSource.statusDidChange, object: nil)
-        refreshPhysicalChordControls()
-      }
-    #endif
     let inputPage = page(inputSections)
 
     let shortcutsPage = page([
@@ -345,6 +319,37 @@ final class PreferenceViewController: NSViewController {
         explanation: InputMethodIdentity.current.isChordLab
           ? helperText("Lab 빌드에서는 구름의 자동 업데이트 알림을 사용하지 않습니다.") : nil),
     ]
+    #if !USE_PREFPANE
+      if InputMethodIdentity.current.isChordLab {
+        let toggle = NSSwitch()
+        toggle.controlSize = .mini
+        toggle.target = self
+        toggle.action = #selector(physicalChordModeChanged(_:))
+        toggle.setAccessibilityLabel("물리적 키 묶기")
+        toggle.setAccessibilityHelp(
+          "지원 세벌식의 모아 누른 키를 배열 기준 초성, 중성, 종성으로 정렬합니다. 경계 및 안전 복구에서는 입력 순서를 유지합니다.")
+        physicalChordSwitch = toggle
+        let permission = NSButton(
+          title: "입력 모니터링 허용…", target: self, action: #selector(requestPhysicalChordPermission(_:)))
+        permission.controlSize = .small
+        physicalChordPermissionButton = permission
+        let status = helperText("")
+        physicalChordStatus = status
+        advancedSections.append(
+          section(
+            "실험 · 물리적 키 묶기",
+            rows: [
+              settingRow("물리적 키 묶기", control: toggle),
+              settingRow("키 해제 관찰 권한", control: permission),
+            ], explanation: status))
+        NotificationCenter.default.removeObserver(
+          self, name: PhysicalKeyEventSource.statusDidChange, object: nil)
+        NotificationCenter.default.addObserver(
+          self, selector: #selector(physicalChordSourceChanged(_:)),
+          name: PhysicalKeyEventSource.statusDidChange, object: nil)
+        refreshPhysicalChordControls()
+      }
+    #endif
     #if DEBUG
       debugButton.title = "종료…"
       debugButton.isBordered = true
@@ -372,14 +377,22 @@ final class PreferenceViewController: NSViewController {
         page.bottomAnchor.constraint(equalTo: pageContainer.bottomAnchor),
       ])
     }
-    NSLayoutConstraint.activate([
-      sectionPicker.topAnchor.constraint(equalTo: view.topAnchor, constant: 12),
-      sectionPicker.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-      pageContainer.topAnchor.constraint(equalTo: sectionPicker.bottomAnchor, constant: 20),
+    var layoutConstraints = [
       pageContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
       pageContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
       pageContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -16),
-    ])
+    ]
+    #if USE_PREFPANE
+      layoutConstraints.append(contentsOf: [
+        sectionPicker.topAnchor.constraint(equalTo: view.topAnchor, constant: 12),
+        sectionPicker.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+        pageContainer.topAnchor.constraint(equalTo: sectionPicker.bottomAnchor, constant: 16),
+      ])
+    #else
+      layoutConstraints.append(
+        pageContainer.topAnchor.constraint(equalTo: view.topAnchor, constant: 16))
+    #endif
+    NSLayoutConstraint.activate(layoutConstraints)
   }
 
   #if !USE_PREFPANE
@@ -428,7 +441,7 @@ final class PreferenceViewController: NSViewController {
     let document = PreferencesDocumentView()
     document.translatesAutoresizingMaskIntoConstraints = false
     scroll.documentView = document
-    let stack = verticalStack(sections, spacing: 24)
+    let stack = verticalStack(sections, spacing: 20)
     stack.translatesAutoresizingMaskIntoConstraints = false
     document.addSubview(stack)
     NSLayoutConstraint.activate([
@@ -477,19 +490,31 @@ final class PreferenceViewController: NSViewController {
       rowsStack.topAnchor.constraint(equalTo: box.contentView!.topAnchor),
       rowsStack.bottomAnchor.constraint(equalTo: box.contentView!.bottomAnchor),
     ])
-    var headerViews: [NSView] = [label]
-    if let explanation = explanation { headerViews.append(explanation) }
-    let header = verticalStack(headerViews, spacing: 4)
-    let headerInset = NSView()
-    header.translatesAutoresizingMaskIntoConstraints = false
-    headerInset.addSubview(header)
-    let group = verticalStack([headerInset, box], spacing: 8)
+    let labelInset = NSView()
+    label.translatesAutoresizingMaskIntoConstraints = false
+    labelInset.addSubview(label)
+    var sectionViews = [labelInset, box]
+    if let explanation = explanation {
+      let explanationInset = NSView()
+      explanation.translatesAutoresizingMaskIntoConstraints = false
+      explanationInset.addSubview(explanation)
+      NSLayoutConstraint.activate([
+        explanation.leadingAnchor.constraint(equalTo: explanationInset.leadingAnchor, constant: 10),
+        explanation.trailingAnchor.constraint(
+          equalTo: explanationInset.trailingAnchor, constant: -10),
+        explanation.topAnchor.constraint(equalTo: explanationInset.topAnchor),
+        explanation.bottomAnchor.constraint(equalTo: explanationInset.bottomAnchor),
+      ])
+      sectionViews.append(explanationInset)
+    }
+    let group = verticalStack(sectionViews, spacing: 6)
     NSLayoutConstraint.activate([
-      header.leadingAnchor.constraint(equalTo: box.contentView!.leadingAnchor, constant: 10),
-      header.trailingAnchor.constraint(equalTo: box.contentView!.trailingAnchor, constant: -10),
-      header.topAnchor.constraint(equalTo: headerInset.topAnchor),
-      header.bottomAnchor.constraint(equalTo: headerInset.bottomAnchor),
+      label.leadingAnchor.constraint(equalTo: labelInset.leadingAnchor, constant: 10),
+      label.trailingAnchor.constraint(equalTo: labelInset.trailingAnchor, constant: -10),
+      label.topAnchor.constraint(equalTo: labelInset.topAnchor),
+      label.bottomAnchor.constraint(equalTo: labelInset.bottomAnchor),
     ])
+    group.setCustomSpacing(8, after: labelInset)
     return group
   }
 
@@ -509,24 +534,24 @@ final class PreferenceViewController: NSViewController {
     row.addSubview(label)
     row.addSubview(control)
     NSLayoutConstraint.activate([
-      row.heightAnchor.constraint(greaterThanOrEqualToConstant: 36),
+      row.heightAnchor.constraint(greaterThanOrEqualToConstant: 34),
       label.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 10),
       label.centerYAnchor.constraint(equalTo: row.centerYAnchor),
-      label.topAnchor.constraint(greaterThanOrEqualTo: row.topAnchor, constant: 7),
-      label.bottomAnchor.constraint(lessThanOrEqualTo: row.bottomAnchor, constant: -7),
+      label.topAnchor.constraint(greaterThanOrEqualTo: row.topAnchor, constant: 6),
+      label.bottomAnchor.constraint(lessThanOrEqualTo: row.bottomAnchor, constant: -6),
       label.trailingAnchor.constraint(lessThanOrEqualTo: control.leadingAnchor, constant: -12),
       control.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -10),
       control.centerYAnchor.constraint(equalTo: row.centerYAnchor),
-      control.topAnchor.constraint(greaterThanOrEqualTo: row.topAnchor, constant: 7),
-      control.bottomAnchor.constraint(lessThanOrEqualTo: row.bottomAnchor, constant: -7),
+      control.topAnchor.constraint(greaterThanOrEqualTo: row.topAnchor, constant: 6),
+      control.bottomAnchor.constraint(lessThanOrEqualTo: row.bottomAnchor, constant: -6),
     ])
     if control is NSPopUpButton {
       control.widthAnchor.constraint(lessThanOrEqualToConstant: 220).isActive = true
     } else if control is MASShortcutView {
-      control.widthAnchor.constraint(equalToConstant: 132).isActive = true
-      let button = NSButton(title: "단축키 입력", target: nil, action: nil)
-      control.heightAnchor.constraint(equalToConstant: button.intrinsicContentSize.height)
-        .isActive = true
+      control.widthAnchor.constraint(equalToConstant: 120).isActive = true
+      control.heightAnchor.constraint(
+        equalToConstant: control.intrinsicContentSize.height
+      ).isActive = true
     }
     buildingKeyViews.append(control)
     return row
@@ -545,15 +570,18 @@ final class PreferenceViewController: NSViewController {
   }
 
   private func styleMenu(_ menu: NSPopUpButton, label: String) {
-    if #available(macOS 14, *) { menu.bezelStyle = .automatic }
-    menu.isBordered = false
-    menu.controlSize = .regular
+    menu.bezelStyle = .rounded
+    menu.isBordered = true
+    menu.controlSize = .small
     menu.alignment = .right
     menu.cell?.lineBreakMode = .byTruncatingMiddle
     menu.setAccessibilityLabel(label)
   }
 
   private func shortcutControl(_ control: MASShortcutView, label: String) -> NSView {
+    // MASShortcut's default cell leaves the clear glyph optically too far right on modern macOS.
+    // Its textured native style applies the library's Big Sur-and-later alignment correction.
+    control.style = .texturedRect
     control.setAccessibilityLabel(label)
     control.setAcceptsFirstResponder(true)
     return control
@@ -582,6 +610,7 @@ final class PreferenceViewController: NSViewController {
 
   private func settingsButton(for title: String, action: Selector) -> NSButton {
     let button = NSButton(title: "열기…", target: self, action: action)
+    button.controlSize = .small
     button.setAccessibilityLabel("\(title) 열기")
     return button
   }
@@ -592,18 +621,38 @@ final class PreferenceViewController: NSViewController {
     else { return }
     window.autorecalculatesKeyViewLoop = true
     window.recalculateKeyViewLoop()
-    let controls = [sectionPicker!] + preferenceKeyViews[sectionPicker.selectedSegment]
+    let pageControls = preferenceKeyViews[sectionPicker.selectedSegment]
+    let controls = sectionPicker.isHidden ? pageControls : [sectionPicker!] + pageControls
+    guard !controls.isEmpty else { return }
     for (index, control) in controls.enumerated() {
       control.nextKeyView = controls[(index + 1) % controls.count]
     }
-    window.initialFirstResponder = sectionPicker
+    window.initialFirstResponder = controls[0]
   }
 
   @objc private func selectSettingsSection(_ sender: NSSegmentedControl) {
+    selectSettingsSection(at: sender.selectedSegment)
+  }
+
+  func selectSettingsSection(at index: Int) {
+    guard preferencePages.indices.contains(index) else { return }
+    sectionPicker.selectedSegment = index
     for (index, page) in preferencePages.enumerated() {
-      page.isHidden = index != sender.selectedSegment
+      page.isHidden = index != sectionPicker.selectedSegment
     }
     updateKeyViewLoop()
+  }
+
+  var settingsSectionTitles: [String] { sectionTitles }
+
+  func preferredContentHeight(for index: Int) -> CGFloat {
+    guard preferencePages.indices.contains(index),
+      let scroll = preferencePages[index] as? NSScrollView,
+      let document = scroll.documentView
+    else { return 340 }
+    view.layoutSubtreeIfNeeded()
+    document.layoutSubtreeIfNeeded()
+    return min(max(300, document.fittingSize.height + 32), 680)
   }
 
   @objc private func settingSwitchChanged(_ sender: NSSwitch) {

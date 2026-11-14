@@ -2,7 +2,7 @@
 
 ## Source of truth
 
-Status: **Draft — product name and integrated wind/ㅂ concept confirmed; final geometry proposed for review.**
+Status: **Draft — product name and flowing B direction confirmed; final geometry proposed for review.**
 Date: 2026-11-14.  
 Product: **바람 입력기 · Baram Input Method**. This document governs the future formal product; the installed experiment remains GureumChordLab until the identity migration is verified.
 
@@ -13,8 +13,8 @@ Evidence reviewed:
 - `README.md:12–21`: lightweight, open-source macOS Korean input and multiple keyboard layouts.
 - `OSXCore/HangulComposer.swift:128–155`: libhangul automatic reordering is an option; physical chord recognition is a separate, unproved capability.
 - `Preferences/PreferenceViewController.swift:162–321`: revised Input / Shortcuts / Advanced navigation and native settings form.
-- `Preferences/PreferenceViewController.swift:346–467`: semantic AppKit colors, 13 pt labels / 11 pt help, native switches and single-chevron popup presentation.
-- `OSX/ConfigurationWindow.swift`: the window controller owns a fixed 500 pt content width, 340 pt minimum height, and automatic keyboard traversal.
+- `Preferences/PreferenceViewController.swift`: semantic AppKit colors, 13 pt labels / 11 pt help, mini switches, small native popups, footer explanations, and compact rows.
+- `OSX/ConfigurationWindow.swift`: the app window owns a centered native preference toolbar, fixed 500 pt content width, per-category fitted height, and automatic keyboard traversal. The legacy prefPane host retains segmented navigation.
 - Reviewed G007 light/dark/minimum/long-value renders, including `/tmp/gureum-preferences-after/preferences-input-light.png` and `preferences-input-dark.png`. These temporary renders are evidence, not shipping brand assets.
 - `COPYING:1–8` and `OSX/Icons/COPYING:1–4`: source and inherited icon rights differ. Existing cloud artwork is not the basis of the new mark.
 - Historical Baram's own introduction: <https://baramim.blogspot.com/>. It also uses the wish meaning of 바람. Our implementation derives from Gureum; formal continuation of historical Baram is not established.
@@ -31,7 +31,7 @@ Proposed personality: calm, precise, lightly poetic, dependable, responsive. A t
 
 Recommended line: **나의 바람대로, 한글이 흐르다.** Use it in brand/release material; ordinary settings should use direct instructions.
 
-The user-confirmed concept is **바람획 ㅂ**: two parallel wind strokes become the letter's own uprights and lower counter, while a branch of the lower stroke exits to the right as a directional tail. Wind and letter are integrated in one silhouette. The distinct, elongated lower counter is the signature; at 16–32 px the intended first reading is ㅂ, and at 128–1024 px the entering strands and wind movement should become apparent. This is an intent pending user recognition review, not a measured claim. Geometry is original and centrally defined in `docs/brand/baram/mark.mjs`. Two compact studies—negative-space wind and interwoven flow—remain comparison material, not interchangeable marks.
+The user-confirmed direction is **바람 궤적 B**: a slightly curved vertical stem and two inward wind curls form a Latin B first. The stacked counters can secondarily echo the Korean ㅂ, but the project does not claim ㅂ-first recognition. At 16–32 px the intended first reading is a clear B; at 128–1024 px the hand-drawn wind flow should become apparent. The stem ends align with the two bowls rather than protruding, avoiding a Bitcoin-like ₿ silhouette. This is an intent pending user recognition review, not a measured claim. Geometry is original and centrally defined in `docs/brand/baram/mark.mjs`; master and menu-size paths are separate.
 
 Trust comes from clear settings, preserved typing habits, accurate release claims, source/license provenance, tested rollback, and honest distinction between automatic reorder and physical chording. Avoid performance claims without measurements, official-successor language without agreement, historical artwork reuse, weather illustrations, metallic keyboard/cloud skeuomorphism, and decorative gradients.
 
@@ -116,24 +116,24 @@ Typography:
 - Poetic line: **AppleMyungjo**, used only in large brand/editorial settings. Fallback to the system Korean serif. Never use it for controls or dense help.
 - Shipping vector wordmarks should eventually be outlined after approval; the current sheet keeps live accessible text for review and relies on installed macOS fonts.
 
-Spacing: 4/8/10/12/20/24 pt rhythm. The user's System Settings Notifications reference and independent advisor supersede both earlier large forms. Content width is fixed at 500 pt with 20 pt edges; default height is 440 pt and minimum height 340 pt, with vertical resizing/scrolling. Rows use a 36 pt minimum plus a 1 pt separator (typically 37–38 pt pitch), 10 pt horizontal insets, and true label/control vertical centering. Separators are inset 10 pt. Section headers use 13 pt bold primary text aligned with the row labels, with at most one concise 11 pt secondary explanation above each group. Native switches use `.mini` (36×16 pt on macOS 26); category segments and value popups use regular intrinsic sizes with no forced font or frame. Popup width is capped at 220 pt for long-name truncation. Shortcut recorders are 132 pt wide with height derived from a regular native button. Section gaps are 24 pt; no row subtitles or collapsible help.
+Spacing: 4/6/8/10/12/16/20 pt rhythm. The user's System Settings reference and independent advisor supersede both earlier large forms. Content width is fixed at 500 pt with 20 pt edges; the app window fits its height to the active category between 300 and 680 pt, keeping the top edge stable. Rows use a 34 pt minimum plus a 1 pt separator, 10 pt horizontal insets, and true label/control vertical centering. Separators are inset 10 pt. Section headers use 13 pt bold primary text aligned with the row labels; at most one concise 11 pt explanation sits below the group as a footer. Native switches use `.mini` (36×16 pt on macOS 26). Value popups and support buttons use bordered `.small` native controls so the value and menu affordance read as one control; popup width is capped at 220 pt for long-name truncation. Shortcut recorders use MASShortcut's native textured alignment at 120 pt, including its corrected clear-glyph position. Section gaps are 20 pt; no row subtitles or collapsible help.
 
 Shape/elevation: native window chrome and stock `NSBox(.primary)` preference groups with system-owned fill/corners. No custom group fill, border, or radius: on macOS 26 the group should become slightly lighter than its dark window and slightly darker than its light window. Brand document target radii remain 8/12/20 pt plus pill and do not override native control geometry. No nested cards, floating shadows, or gloss. App-icon source master is a full 1024×1024 square with separate background/mark layers; the OS supplies the final mask. Rounded containers shown on the sheet are presentation mockups, not baked production masks.
 
 Motion: retain system menu/switch transitions. Respect Reduce Motion. No typing-time bounce, logo animation, or particle effects.
 
-Iconography: original **바람획 ㅂ** mark; system SF Symbols for functional UI. Master geometry uses a 128-unit frame with 10-unit strokes, curved entries, lower counter, and a curved exit. The small optical version uses 12-unit strokes (1.5 px at 16 px), shortened entries, an enlarged lower counter, and a flat shorter exit; do not scale the master unchanged for the menu. Menu-bar assets are monochrome templates and must read on light/dark bars without a colored square. Large app-icon studies may use paper + warm strands on jade, or a monochrome equivalent. Color separation reveals structure without supplying essential recognition. Keep at least 20% clear space around the mark. Do not add a separate wind illustration to the letter.
+Iconography: original **바람 궤적 B** mark; system SF Symbols for functional UI. Master geometry uses a 128-unit frame with 9-unit strokes, a slightly curved stem, an upper curl, and a roughly 10% wider lower curl. The small optical version uses 12-unit strokes (1.5 px at 16 px), a straight stem, simplified bowls, and short inner hooks; do not scale the master unchanged for the menu. Menu-bar assets are monochrome templates and must read on light/dark bars without a colored square. The primary app-icon study uses one paper-colored mark on jade; a warm lower curl is an optional large-scale study, never required for recognition. Keep at least 20% clear space around the mark. Do not add a separate wind illustration to the letter.
 
-`brand-sheet/recognition.png` compares the master, optical correction, a generic wind, a generic cloud, and plain ㅂ at actual 16/32/128 px. It is a structural review grid, not a user study or proof of recall. Before approval, inspect the silhouette without a wordmark and ask whether it remains distinguishable. Never claim recognition is established from geometry tests alone.
+`brand-sheet/recognition.png` compares the master, optical correction, a ₿ confusion reference, plain Latin B, and plain ㅂ at actual 16/18/32/128 px. It is a structural review grid, not a user study or proof of recall. Before approval, inspect the silhouette without a wordmark for B recognition, ₿ confusion, 3/ε confusion, and curl fill-in. Never claim recognition is established from geometry tests alone.
 
 ## Components
 
 | Component | Contract |
 |---|---|
 | Wordmark | Korean name primary; English descriptor secondary; keep “입력기” subordinate |
-| App icon | Integrated two-wind-strand ㅂ study; concept approved, geometry pending visual approval and size testing |
+| App icon | Flowing B made from a stem and two wind curls; direction approved, geometry pending visual approval and size testing |
 | Menu symbol | Monochrome template; optically simplified; preserve keyboard-layout distinction through existing text/metadata |
-| Category navigation | Native three-way segmented control, one selection, visible keyboard focus |
+| Category navigation | App path: centered native preference toolbar with Input / Shortcuts / Advanced icons and fitted content height. prefPane fallback: native three-way segmented control |
 | Boolean setting | Native mini NSSwitch with VoiceOver name matching its visible row label; explanations belong to the group |
 | Value menu | Stock borderless regular NSPopUpButton with natural font/size and system-drawn arrow/hover/focus/type-select; no accessory style, custom cell, chip, or arrow overlay |
 | Two-choice setting | The same native popup language as other value settings; Option reuses its existing popup/action |
@@ -151,7 +151,7 @@ The HTML sheet has semantic page labels, headings, live text, and screenshot des
 
 ## Responsive behavior
 
-This is a macOS desktop input method. Preferences keep a 500 pt content width and resize vertically from 340 pt; each category scrolls vertically when its always-visible groups exceed the viewport. Long values truncate before labels and explanations wrap. No mobile layout is implied. The canonical brand sheet is eight landscape pages at 1200×750 pt (1600×1000 CSS px); PNG previews render each page at 1200×750 px.
+This is a macOS desktop input method. Preferences keep a 500 pt content width. The app window changes height per category between 300 and 680 pt, with Reduce Motion respected; a vertical scroller remains only as a safety fallback for constrained screens and the prefPane host. Long values truncate before labels and footer explanations wrap. No mobile layout is implied. The canonical brand sheet is eight landscape pages at 1200×750 pt (1600×1000 CSS px); PNG previews render each page at 1200×750 px.
 
 ## Interaction states
 
@@ -186,7 +186,7 @@ Provenance wording for release review: “구름 입력기를 기반으로 새�
 
 ## Open questions
 
-- [ ] User: approve or revise final 바람획 ㅂ geometry and controlled two-tone application after actual-size/no-wordmark comparison; the integrated wind/ㅂ concept is confirmed.
+- [ ] User: approve or revise final 바람 궤적 B geometry after actual-size/no-wordmark comparison; B-first reading and one-flow character are confirmed directions.
 - [ ] Release owner: complete official trademark/name clearance and attempt contact with historical Baram developer; determines public naming/relationship language, not this draft's ability to be reviewed.
 - [ ] Release owner: decide final bundle/defaults identifiers and migration rules after trial gates; prevents settings loss and duplicate input sources.
 - [ ] Engineering: prove or reject physical key-up delivery across required clients; determines feature language and architecture.
